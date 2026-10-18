@@ -1,15 +1,72 @@
-name: Go checks
+name: glenv CI
+
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: glenv-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  go:
+    name: Go unit tests and vet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test ./...
-      - run: go vet ./...
-      - run: go build ./cmd/glenv
+          cache: true
+      - name: Check Go formatting
+        run: |
+          bad="$(gofmt -l cmd internal)"
+          if [ -n "$bad" ]; then
+            echo "Unformatted Go files:"
+            echo "$bad"
+            exit 1
+          fi
+      - name: Unit and regression tests
+        run: go test -count=1 -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build -trimpath -o /tmp/glenv ./cmd/glenv
+      - name: CLI smoke tests
+        run: |
+          /tmp/glenv version
+          /tmp/glenv inspect /bin/true
+          /tmp/glenv release --store /tmp/glenv-ci-store status
+      - name: Release inventory and verification smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/glenv-fixture/sysroot/usr/lib
+          printf 'glibc fixture' > /tmp/glenv-fixture/sysroot/usr/lib/libc.so.6
+          ln -s /usr/lib/libc.so.6 /tmp/glenv-fixture/sysroot/libc.so.6
+          /tmp/glenv release inventory /tmp/glenv-fixture fixture-1 > /tmp/glenv-fixture/glenv-manifest.json
+          /tmp/glenv release --store /tmp/glenv-ci-store stage /tmp/glenv-fixture fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store verify fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store activate fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store status
+  alpine:
+    name: Alpine musl compilation and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: golang:1.23-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test on musl
+        run: go test -count=1 ./...
+      - name: Build on musl
+        run: go build -trimpath -o /tmp/glenv ./cmd/glenv
+      - name: Check ELF and binary startup
+        run: |
+          /tmp/glenv version
+          /tmp/glenv inspect /bin/busybox
