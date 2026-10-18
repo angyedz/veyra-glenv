@@ -47,6 +47,8 @@ jobs:
           /tmp/glenv release --store /tmp/glenv-ci-store stage /tmp/glenv-fixture fixture-1
           /tmp/glenv release --store /tmp/glenv-ci-store verify fixture-1
           /tmp/glenv release --store /tmp/glenv-ci-store activate fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store pin /tmp/glenv-boot/runtime
+          test "$(basename "$(readlink /tmp/glenv-boot/runtime)")" = fixture-1
           /tmp/glenv release --store /tmp/glenv-ci-store status
   alpine:
     name: Alpine musl compilation and tests
