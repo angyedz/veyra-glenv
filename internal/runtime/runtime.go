@@ -46,7 +46,7 @@ func (r Runtime) LoaderFor(machine elf.Machine)(string,error){
  default:return "",fmt.Errorf("unsupported machine: %s",machine)
  }
  for _,rel:=range candidates{
-  resolved,err:=filepath.EvalSymlinks(filepath.Join(r.Sysroot,rel))
+  resolved,err:=resolveInSysroot(r.Sysroot,rel)
   if err!=nil||!within(r.Sysroot,resolved){continue}
   stat,err:=os.Stat(resolved)
   if err==nil&&stat.Mode().IsRegular(){return resolved,nil}
@@ -63,7 +63,7 @@ func (r Runtime) LibraryPaths(machine elf.Machine)[]string{
  }
  paths:=[]string{};seen:=map[string]bool{}
  for _,rel:=range append(abi,"usr/lib64","lib64","usr/lib","lib","usr/local/lib"){
-  resolved,err:=filepath.EvalSymlinks(filepath.Join(r.Sysroot,rel))
+  resolved,err:=resolveInSysroot(r.Sysroot,rel)
   if err!=nil||!within(r.Sysroot,resolved)||seen[resolved]{continue}
   stat,err:=os.Stat(resolved)
   if err==nil&&stat.IsDir(){seen[resolved]=true;paths=append(paths,resolved)}
