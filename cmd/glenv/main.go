@@ -42,7 +42,7 @@ func run(args []string)int{
   storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   rest:=fs.Args()
-  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <inventory|verify|stage|activate|rollback|status> ...");return 2}
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <inventory|verify|stage|activate|pin|rollback|status> ...");return 2}
   store:=deployment.Store{Root:*storeRoot}
   switch rest[0]{
   case "inventory":
@@ -59,6 +59,9 @@ func run(args []string)int{
   case "activate":
    if len(rest)!=2{return 2}
    if err:=store.Activate(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "pin":
+   if len(rest)!=2{return 2}
+   if err:=store.Pin(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
   case "rollback":
    if len(rest)!=1{return 2}
    if err:=store.Rollback();err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
