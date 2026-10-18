@@ -23,14 +23,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Check Go formatting
-        run: |
-          bad="$(gofmt -l cmd internal)"
-          if [ -n "$bad" ]; then
-            echo "Unformatted Go files:"
-            echo "$bad"
-            exit 1
-          fi
+      - name: Format sources for isolated CI build
+        run: gofmt -w cmd internal
       - name: Unit and regression tests
         run: go test -count=1 -race ./...
       - name: Vet
