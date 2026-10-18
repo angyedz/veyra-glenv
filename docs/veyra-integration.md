@@ -38,3 +38,9 @@ The legacy `/opt/glibc-env/sysroot` is supported as an input for experiments; th
 The `internal/deployment` package verifies `glenv-manifest.json` with `format: 1`, a version, and an explicit list of regular files with SHA-256 digests. Verification is read-only and must pass before a later activation component is permitted to select the version. It is **not** a complete directory integrity guarantee: unlisted files and symlinks are not validated. Debian sysroots require a future manifest format covering symlink targets and the entire release tree before any production activation.
 
 No privileged deployment or OTA switch is implemented.
+
+## Complete tree verification (format 2)
+
+The new `deployment.Inventory(root, version)` produces a deterministic inventory of regular files (SHA-256), directories and symbolic links (literal link targets). `deployment.VerifyTree` detects changed content, changed link targets, and unexpected/missing tree entries without following symlinks. The `glenv-manifest.json` file is excluded from the inventory to avoid recursive hashing. This is a **local integrity check**, not proof of publisher authenticity; an OTA implementation must authenticate its signed release metadata and verify the release tree before activation.
+
+The current implementation **does not install, mount, switch, or garbage-collect runtimes**. Immutable version storage, host/user mount namespace provisioning, boot selection and rollback are still separate work items. In particular, an inventory is not a secure immutable snapshot while another process can mutate the source concurrently: stage under trusted ownership and prevent writes before verification and activation.
