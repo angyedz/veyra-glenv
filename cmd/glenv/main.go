@@ -6,13 +6,16 @@ import (
  "os"
  "os/exec"
  "strings"
+ "encoding/json"
+ "path/filepath"
+ "github.com/angyedz/veyra-glenv/internal/deployment"
 
  "github.com/angyedz/veyra-glenv/internal/elfinfo"
  "github.com/angyedz/veyra-glenv/internal/launcher"
  glruntime "github.com/angyedz/veyra-glenv/internal/runtime"
 )
 
-const version="0.2.0-dev"
+const version="0.3.0-dev"
 func main(){os.Exit(run(os.Args[1:]))}
 func rootFlag(fs *flag.FlagSet)*string{
  initial:=os.Getenv("GLENV_RUNTIME")
@@ -33,6 +36,39 @@ func run(args []string)int{
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   r,err:=glruntime.Detect(*root);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
   fmt.Println("runtime:",r.Root);fmt.Println("sysroot:",r.Sysroot);fmt.Println("loader:",r.Loader)
+  return 0
+ case "release":
+  fs:=flag.NewFlagSet("release",flag.ContinueOnError)
+  storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
+  if err:=fs.Parse(args[1:]);err!=nil{return 2}
+  rest:=fs.Args()
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <inventory|verify|stage|activate|rollback|status> ...");return 2}
+  store:=deployment.Store{Root:*storeRoot}
+  switch rest[0]{
+  case "inventory":
+   if len(rest)!=3{return 2}
+   m,err:=deployment.Inventory(rest[1],rest[2]);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   encoded,err:=json.MarshalIndent(m,"","  ");if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   fmt.Println(string(encoded));return 0
+  case "verify":
+   if len(rest)!=2{return 2}
+   if err:=store.Verify(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "stage":
+   if len(rest)!=3{return 2}
+   if err:=store.Stage(rest[1],rest[2]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "activate":
+   if len(rest)!=2{return 2}
+   if err:=store.Activate(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "rollback":
+   if len(rest)!=1{return 2}
+   if err:=store.Rollback();err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "status":
+   if len(rest)!=1{return 2}
+   current,err:=store.Current();if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   previous,err:=store.Previous();if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   fmt.Printf("store: %s\\ncurrent: %s\\nprevious: %s\\n",filepath.Clean(*storeRoot),current,previous)
+  default:fmt.Fprintln(os.Stderr,"unknown release command:",rest[0]);return 2
+  }
   return 0
  case "run":
   fs:=flag.NewFlagSet("run",flag.ContinueOnError);root:=rootFlag(fs)
@@ -55,4 +91,4 @@ func run(args []string)int{
 func asExit(err error,target **exec.ExitError)bool{
  e,ok:=err.(*exec.ExitError);if ok{*target=e};return ok
 }
-func usage(){fmt.Fprintln(os.Stderr,"usage: glenv <version|inspect|doctor|run> [options]")}
+func usage(){fmt.Fprintln(os.Stderr,"usage: glenv <version|inspect|doctor|run|release> [options]")}
