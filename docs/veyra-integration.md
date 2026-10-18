@@ -1,9 +1,9 @@
-# Veyra GLenv integration contract (design, not installed)
+# Veyra glenv integration contract (design, not installed)
 
 ## Non-negotiable properties
 
 - Veyra host and user environment remain musl-based.
-- GLenv provides a **glibc compatibility userspace**, not a replacement libc for Veyra.
+- glenv provides a **glibc compatibility userspace**, not a replacement libc for Veyra.
 - Preserve the original glenv Debian sysroot and its functional components: GTK, Mesa/EGL/GLVND, PipeWire client libraries **and dlopen modules**, TLS/NSS, and the existing Wayland explicit-sync shim.
 - Never modify the original `angyedz/glenv` repository as part of this port.
 - No host loader replacement, bind mounts, fstab changes, privileged service installation, or OTA activation from the current CLI.
@@ -23,12 +23,18 @@ The ordinary Linux ELF `PT_INTERP` path is **not relocatable**: a normal `execve
 
 ## Updates and rollback
 
-Prepare and validate a complete immutable runtime tree offline. Include the loader, sysroot libraries, graphics stack, PipeWire modules, Wayland shim and relevant metadata in the same version. Activate the new host deployment and its GLenv version **together at boot**. On rollback, activate the previous matching version. Keep old trees while any running process or rollback target depends on them. Never mutate a live runtime tree in place.
+Prepare and validate a complete immutable runtime tree offline. Include the loader, sysroot libraries, graphics stack, PipeWire modules, Wayland shim and relevant metadata in the same version. Activate the new host deployment and its glenv version **together at boot**. On rollback, activate the previous matching version. Keep old trees while any running process or rollback target depends on them. Never mutate a live runtime tree in place.
 
 Host OTA must not change the user environment's APK database or installed applications. Runtime compatibility needs ABI tests against real Wayland/KWin, PipeWire, screen sharing, and graphics hardware before activation.
 
 ## Important loader limitations
 
-`ld-linux --library-path` only supplies library search paths. It does not automatically solve absolute paths, `dlopen` modules, NSS, locales, certificates, GLVND vendor JSON, GPU driver consistency, `ld.so.cache`, or Wayland shim injection. These require an explicit integration design and tests. **Do not ship this launcher as a replacement for original GLenv yet.**
+`ld-linux --library-path` only supplies library search paths. It does not automatically solve absolute paths, `dlopen` modules, NSS, locales, certificates, GLVND vendor JSON, GPU driver consistency, `ld.so.cache`, or Wayland shim injection. These require an explicit integration design and tests. **Do not ship this launcher as a replacement for original glenv yet.**
 
 The legacy `/opt/glibc-env/sysroot` is supported as an input for experiments; this repository does not install or update it.
+
+## Staged runtime manifest (prototype)
+
+The `internal/deployment` package verifies `glenv-manifest.json` with `format: 1`, a version, and an explicit list of regular files with SHA-256 digests. Verification is read-only and must pass before a later activation component is permitted to select the version. It is **not** a complete directory integrity guarantee: unlisted files and symlinks are not validated. Debian sysroots require a future manifest format covering symlink targets and the entire release tree before any production activation.
+
+No privileged deployment or OTA switch is implemented.
