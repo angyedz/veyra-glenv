@@ -5,6 +5,7 @@ import (
  "fmt"
  "os"
  "path/filepath"
+ "strings"
 )
 
 // Pin creates a boot-session-specific symlink directly to the selected,
@@ -26,6 +27,8 @@ func (s Store) Pin(destination string)error{
  // non-symlink object installed by another service.
  if info,err:=os.Lstat(destination);err==nil{
   if info.Mode()&os.ModeSymlink==0{return fmt.Errorf("pin destination exists and is not a symlink: %s",destination)}
+  old,err:=os.Readlink(destination);if err!=nil{return err}
+  if !strings.HasPrefix(old,filepath.Join(s.Root,"versions")+string(filepath.Separator)){return fmt.Errorf("refusing to overwrite foreign symlink: %s",destination)}
  }else if !os.IsNotExist(err){return err}
  suffix,err:=randomSuffix();if err!=nil{return err}
  temp:=filepath.Join(parent,".glenv-pin-"+suffix)
