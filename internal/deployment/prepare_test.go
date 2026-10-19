@@ -37,7 +37,7 @@ func TestPrepareCopyPreservesFullGlenvAndSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Format != 2 || manifest.Version != "v1" {
+	if manifest.Format != 3 || manifest.Version != "v1" {
 		t.Fatalf("unexpected manifest: %+v", manifest)
 	}
 	shimInfo, err := os.Stat(filepath.Join(staging, "lib", "glenv-wayland-filter.so"))
