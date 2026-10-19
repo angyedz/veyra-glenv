@@ -56,3 +56,16 @@ glenv release --store /var/lib/veyra/glenv boot-pin veyra-host-v1 /run/glenv/run
 This pair of IDs is not a signed Veyra OTA or bootloader transaction. Veyra must independently authenticate the host generation, keep the glenv runtime immutable, expose the same boot-pinned generation read-only to both environments, and validate the full glibc/Wayland/PipeWire stack before any production rollout.
 
 GitHub Actions builds a **development-only**, statically linked Alpine/musl `glenv` binary and uploads a tarball with SHA-256 checksum. Retrieve it from the matching [CI run](https://github.com/angyedz/veyra-glenv/actions/workflows/go.yml); it is not a signed production package and does not replace the existing glenv installation.
+
+## A/B host rollback bindings
+
+For the next-generation Veyra boot coordinator, use the **immutable per-deployment** commands instead of the legacy mutable `bind-host` singleton:
+
+```sh
+glenv release --store /var/lib/veyra/glenv pair-host veyra-A glenv-v1
+glenv release --store /var/lib/veyra/glenv pair-host veyra-B glenv-v2
+glenv release --store /var/lib/veyra/glenv pair-status veyra-A
+glenv release --store /var/lib/veyra/glenv boot-pair-pin veyra-A /run/glenv/runtime
+```
+
+Each host ID has its own create-only mapping; it cannot silently be retargeted to another glenv generation. Selecting an older host ID after a rollback pins its matching previous runtime, regardless of the `current` selector. These records are not signed, and boot pinning remains a **prototype** until Veyra implements authenticated boot metadata, trusted immutable storage and read-only runtime mounts for both environments.
