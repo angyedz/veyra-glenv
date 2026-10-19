@@ -42,7 +42,7 @@ func run(args []string)int{
   storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   rest:=fs.Args()
-  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify-signed|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify-signed|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|boot-pair-pin-signed|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
   store:=deployment.Store{Root:*storeRoot}
   switch rest[0]{
   case "prepare-copy":
@@ -80,6 +80,10 @@ func run(args []string)int{
   case "boot-pair-pin":
    if len(rest)!=3{return 2}
    if err:=store.PinPairedHost(rest[1],rest[2]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "boot-pair-pin-signed":
+   if len(rest)!=4{return 2}
+   key,err:=deployment.ReadPublicKey(rest[3]);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   if err:=store.PinPairedHostSigned(rest[1],rest[2],key);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
   case "bind-host":
    if len(rest)!=3{return 2}
    if err:=store.BindHost(rest[1],rest[2]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
