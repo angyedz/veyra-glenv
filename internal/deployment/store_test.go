@@ -103,3 +103,14 @@ func TestStoreRejectsSymlinkVersionsDir(t *testing.T){
  if err:=s.Verify("v1");err==nil{t.Fatal("verified through symlinked versions directory")}
  if _,err:=os.Stat(filepath.Join(external,"v1"));!os.IsNotExist(err){t.Fatalf("wrote outside store: %v",err)}
 }
+
+func TestStoreRejectsSymlinkManifest(t *testing.T){
+ base:=t.TempDir()
+ source:=fixture(t,base,"v1")
+ if err:=os.Remove(filepath.Join(source,"glenv-manifest.json"));err!=nil{t.Fatal(err)}
+ external:=filepath.Join(base,"foreign-manifest.json")
+ if err:=os.WriteFile(external,[]byte("{}"),0600);err!=nil{t.Fatal(err)}
+ if err:=os.Symlink(external,filepath.Join(source,"glenv-manifest.json"));err!=nil{t.Fatal(err)}
+ s:=Store{Root:filepath.Join(base,"store")}
+ if err:=s.Stage(source,"v1");err==nil{t.Fatal("accepted external symlink manifest")}
+}
