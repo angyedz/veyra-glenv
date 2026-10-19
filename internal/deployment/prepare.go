@@ -107,9 +107,6 @@ func PrepareCopy(source, destination, version string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := VerifyTree(dst, manifest); err != nil {
-		return fmt.Errorf("copied glenv tree does not match source inventory: %w", err)
-	}
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
@@ -124,6 +121,9 @@ func PrepareCopy(source, destination, version string) (err error) {
 		if err := os.Chmod(modes[i].path, modes[i].mode); err != nil {
 			return err
 		}
+	}
+	if err := VerifyTree(dst, manifest); err != nil {
+		return fmt.Errorf("copied glenv tree does not match source inventory: %w", err)
 	}
 	complete = true
 	return nil
