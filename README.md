@@ -83,3 +83,18 @@ glenv release --store /var/lib/veyra/glenv verify glenv-2026-10
 The source is never moved or modified; output must not exist beforehand. New manifests use **format 3** with SHA-256 file hashes, exact symlink targets, and Unix permission bits. The original Wayland shim binary is copied, not rewritten. Format 2 remains readable for compatibility but does not detect permission changes. The resulting tree is still not signed, mounted read-only, or automatically boot-activated.
 
 **Original-prefix safety:** `release stage` moves its input staging directory, so it refuses the installed `/opt/glibc-env` tree and any source carrying the original installer's `.glenv-prefix` ownership marker. `prepare-copy` deliberately omits this administrative marker from the new release, while leaving it untouched on the original source. Everything else in the trusted offline prefix, including the full Debian sysroot and Wayland filter, is copied and checked. Never use `stage` directly on your working glenv installation.
+
+## Signed glenv releases (opt-in, development)
+
+An externally signed format-3 manifest can be verified and staged with a trusted Ed25519 public key **outside** the runtime being admitted:
+
+```sh
+glenv release verify-signed /staging/glenv-v1 /etc/veyra/trust/glenv-ed25519.pub
+glenv release --store /var/lib/veyra/glenv stage-signed /staging/glenv-v1 glenv-v1 /etc/veyra/trust/glenv-ed25519.pub
+glenv release --store /var/lib/veyra/glenv pair-host veyra-slot-A glenv-v1
+glenv release --store /var/lib/veyra/glenv boot-pair-pin-signed veyra-slot-A /run/glenv/selected /etc/veyra/trust/glenv-ed25519.pub
+```
+
+`stage-signed` checks the exact signed manifest and complete release before and after staging. `boot-pair-pin-signed` requires that signature again before pinning. Legacy `stage` and `boot-pair-pin` remain **unsigned developer utilities** and must not be used as an authenticated OTA path.
+
+The CI-only `tests/signfixture` utility generates ephemeral Ed25519 fixtures without persisting a private key. Its public key must **never** be installed as a production trust anchor. A production signer, secure host boot metadata, trusted and protected release storage, key rotation, and rollback protection are separate work. Veyra's opt-in boot/mount scripts can require signature checks, and [Veyra integration CI](https://github.com/angyedz/Veyra-Linux/actions) has tested signed read-only host/user binds inside an isolated Linux mount namespace. The underlying release files are not made immutable by this Go manager.
