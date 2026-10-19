@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
       - name: Format sources for isolated CI build
         run: gofmt -w cmd internal
       - name: Unit and regression tests
