@@ -42,3 +42,17 @@ glenv release --store /tmp/glenv-store status
 ```
 
 See [integration design](docs/veyra-integration.md) for important security and atomicity limitations. **Do not install this prototype over the original glenv runtime**: it has no verified signature chain, managed immutable mounts, system-wide boot-deployment transaction, or completed Wayland/PipeWire functional test suite.
+
+## Boot pairing with a Veyra deployment (prototype)
+
+One atomically replaced `boot-binding.json` stores both the Veyra host deployment ID and the required glenv release version. The boot coordinator pins that precise glenv version only when its host ID matches:
+
+```sh
+glenv release --store /var/lib/veyra/glenv bind-host veyra-host-v1 glenv-v1
+glenv release --store /var/lib/veyra/glenv boot-status
+glenv release --store /var/lib/veyra/glenv boot-pin veyra-host-v1 /run/glenv/runtime
+```
+
+This pair of IDs is not a signed Veyra OTA or bootloader transaction. Veyra must independently authenticate the host generation, keep the glenv runtime immutable, expose the same boot-pinned generation read-only to both environments, and validate the full glibc/Wayland/PipeWire stack before any production rollout.
+
+GitHub Actions builds a **development-only**, statically linked Alpine/musl `glenv` binary and uploads a tarball with SHA-256 checksum. Retrieve it from the matching [CI run](https://github.com/angyedz/veyra-glenv/actions/workflows/go.yml); it is not a signed production package and does not replace the existing glenv installation.
