@@ -156,3 +156,53 @@ jobs:
             dist/glenv-linux-musl-x86_64.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
+
+  original-wayland-shim:
+    name: Original glenv Wayland shim ABI compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out new glenv runtime manager
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch unchanged original glenv shim sources
+        uses: actions/checkout@v4
+        with:
+          repository: angyedz/glenv
+          ref: 05d3b68a09d8b6e5d84e3b731ef1a2badfc5afd6
+          path: original-glenv
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Compile original Wayland filter without modifying upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=/tmp/glenv-original-wayland
+          mkdir -p "$root/sysroot/lib/x86_64-linux-gnu" "$root/lib"
+          cp -L /lib64/ld-linux-x86-64.so.2 "$root/sysroot/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+          cp -L /lib/x86_64-linux-gnu/libc.so.6 "$root/sysroot/lib/x86_64-linux-gnu/libc.so.6"
+          gcc -shared -fPIC -O2 -nostdlib \
+            -o "$root/lib/glenv-wayland-filter.so" \
+            original-glenv/src/shim/glenv-wayland-filter.c
+          go build -trimpath -o /tmp/glenv-wayland-test ./cmd/glenv
+          /tmp/glenv-wayland-test doctor --runtime "$root"
+          LD_DEBUG=files /tmp/glenv-wayland-test run --runtime "$root" /bin/true \
+            > /tmp/glenv-wayland-loader.log 2>&1
+          grep -F "$root/lib/glenv-wayland-filter.so" /tmp/glenv-wayland-loader.log
+      - name: Verify original shim survives non-destructive glenv preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a /tmp/glenv-original-wayland /tmp/glenv-wayland-offline
+          printf 'original ownership marker' > /tmp/glenv-wayland-offline/.glenv-prefix
+          /tmp/glenv-wayland-test release prepare-copy \
+            /tmp/glenv-wayland-offline /tmp/glenv-wayland-prepared shim-test-v1
+          cmp -s \
+            /tmp/glenv-wayland-offline/lib/glenv-wayland-filter.so \
+            /tmp/glenv-wayland-prepared/lib/glenv-wayland-filter.so
+          test -f /tmp/glenv-wayland-offline/.glenv-prefix
+          test ! -e /tmp/glenv-wayland-prepared/.glenv-prefix
