@@ -54,7 +54,10 @@ func (s Store) Setup()error{
 }
 func readTree(dir string)(TreeManifest,error){
  var m TreeManifest
- data,err:=os.ReadFile(filepath.Join(dir,"glenv-manifest.json"));if err!=nil{return m,err}
+ manifest:=filepath.Join(dir,"glenv-manifest.json")
+ info,err:=os.Lstat(manifest);if err!=nil{return m,err}
+ if !info.Mode().IsRegular(){return m,errors.New("glenv manifest must be a regular file")}
+ data,err:=os.ReadFile(manifest);if err!=nil{return m,err}
  if err=json.Unmarshal(data,&m);err!=nil{return m,err}
  return m,VerifyTree(dir,m)
 }
