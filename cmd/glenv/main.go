@@ -69,7 +69,7 @@ func run(args []string)int{
    if len(rest)!=1{return 2}
    current,err:=store.Current();if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
    previous,err:=store.Previous();if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
-   fmt.Printf("store: %s\\ncurrent: %s\\nprevious: %s\\n",filepath.Clean(*storeRoot),current,previous)
+   fmt.Printf("store: %s\ncurrent: %s\nprevious: %s\n",filepath.Clean(*storeRoot),current,previous)
   default:fmt.Fprintln(os.Stderr,"unknown release command:",rest[0]);return 2
   }
   return 0
