@@ -62,6 +62,11 @@ func (s Store) Stage(source,version string)error{
  if rel=="."||(!strings.HasPrefix(rel,".."+string(filepath.Separator))&&rel!=".."){
   return errors.New("source is inside the version store")
  }
+ // Also reject moving an ancestor of the store into itself.
+ reverse,err:=filepath.Rel(source,absStore);if err!=nil{return err}
+ if reverse=="."||(!strings.HasPrefix(reverse,".."+string(filepath.Separator))&&reverse!=".."){
+  return errors.New("source contains the version store")
+ }
  if err:=os.Rename(source,dest);err!=nil{return err}
  if err:=s.Verify(version);err!=nil{
   // Do not remove or roll back a moved tree blindly: report the staged
