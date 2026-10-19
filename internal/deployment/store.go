@@ -50,6 +50,8 @@ func readTree(dir string)(TreeManifest,error){
 func (s Store) Verify(version string)error{
  if err:=s.verifyStoreRoot();err!=nil{return err}
  dir,err:=s.release(version);if err!=nil{return err}
+ info,err:=os.Lstat(dir);if err!=nil{return err}
+ if !info.IsDir()||info.Mode()&os.ModeSymlink!=0{return errors.New("release must be a real directory")}
  m,err:=readTree(dir);if err!=nil{return err}
  if m.Version!=version{return fmt.Errorf("release %s has mismatched manifest version %q",version,m.Version)}
  return nil
@@ -116,6 +118,10 @@ func syncDir(p string)error{
 }
 func (s Store) replaceLink(link,version string)error{
  if _,err:=s.release(version);err!=nil{return err}
+ destination:=filepath.Join(s.Root,link)
+ if info,err:=os.Lstat(destination);err==nil {
+  if info.Mode()&os.ModeSymlink==0{return fmt.Errorf("refusing to replace non-symlink selector: %s",destination)}
+ }else if !os.IsNotExist(err){return err}
  suffix,err:=randomSuffix();if err!=nil{return err}
  temp:=filepath.Join(s.Root,".glenv-"+link+"-"+suffix)
  if err:=os.Symlink(filepath.Join("versions",version),temp);err!=nil{return err}
