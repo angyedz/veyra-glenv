@@ -54,6 +54,28 @@ jobs:
           /tmp/glenv doctor --runtime "$root"
           /tmp/glenv run --runtime "$root" --dry-run /bin/true
           /tmp/glenv run --runtime "$root" /bin/true
+      - name: Signed glenv boot end-to-end (ephemeral CI key)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=/tmp/glenv-ci-signed
+          store=/tmp/glenv-ci-signed-store
+          pub=/tmp/glenv-ci-ephemeral.pub
+          mkdir -p "$root/sysroot"
+          printf 'signed glibc runtime fixture' > "$root/sysroot/libc.so.6"
+          /tmp/glenv release inventory "$root" signed-v1 > "$root/glenv-manifest.json"
+          go run ./tests/signfixture "$root" "$pub"
+          /tmp/glenv release verify-signed "$root" "$pub"
+          /tmp/glenv release --store "$store" stage "$root" signed-v1
+          /tmp/glenv release --store "$store" pair-host veyra-signed signed-v1
+          /tmp/glenv release --store "$store" boot-pair-pin-signed veyra-signed /tmp/glenv-signed-boot/runtime "$pub"
+          test "$(basename "$(readlink /tmp/glenv-signed-boot/runtime)")" = signed-v1
+          printf 'tampered' > "$store/versions/signed-v1/sysroot/libc.so.6"
+          if /tmp/glenv release --store "$store" boot-pair-pin-signed veyra-signed /tmp/glenv-signed-boot/another "$pub"; then
+            echo 'Tampered signed runtime was allowed to boot' >&2
+            exit 1
+          fi
+          test ! -e /tmp/glenv-signed-boot/another
       - name: Preserve source when preparing a Debian glenv release
         shell: bash
         run: |
