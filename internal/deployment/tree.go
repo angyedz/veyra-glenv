@@ -59,7 +59,7 @@ func Inventory(root,version string)(TreeManifest,error){
   if name==base{return nil}
   rel,err:=filepath.Rel(base,name);if err!=nil{return err}
   rel=filepath.ToSlash(rel)
-  if rel=="glenv-manifest.json"{return nil}
+  if rel=="glenv-manifest.json"||rel=="glenv-manifest.json.sig"{return nil}
   if !validPath(rel){return fmt.Errorf("invalid release path: %q",rel)}
   entry:=Entry{Path:rel}
   info,err:=os.Lstat(name);if err!=nil{return err}
