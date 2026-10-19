@@ -170,9 +170,11 @@ jobs:
                 echo "PipeWire socket was not created" >&2
                 exit 1
               fi
-              export SPA_PLUGIN_DIR="$base/runtime/sysroot/usr/lib/x86_64-linux-gnu/spa-0.2"
-              export PIPEWIRE_MODULE_DIR="$base/runtime/sysroot/usr/lib/x86_64-linux-gnu/pipewire-0.3"
-              export PIPEWIRE_CONFIG_DIR="$base/runtime/sysroot/usr/share/pipewire"
+              # Force wrong host paths; the glenv launcher must replace them
+              # with directories from Debian, not load musl SPA/PipeWire code.
+              export SPA_PLUGIN_DIR=/usr/lib/musl-do-not-load-spa
+              export PIPEWIRE_MODULE_DIR=/usr/lib/musl-do-not-load-pipewire
+              export PIPEWIRE_CONFIG_DIR=/usr/share/musl-do-not-load-pipewire
               "$base/glenv-trixie" run --runtime "$base/runtime" \
                 "$base/runtime/sysroot/usr/bin/pw-cli" info 0 \
                 >/tmp/debian-pw-cli.log 2>&1 || {
