@@ -65,7 +65,7 @@ func PrepareCopy(source, destination, version string) (err error) {
 		path string
 		mode os.FileMode
 	}
-	modes := []directoryMode{{path: dst, mode: info.Mode().Perm()}}
+	modes := []directoryMode{{path: dst, mode: info.Mode()}}
 	err = filepath.WalkDir(src, func(name string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -90,7 +90,7 @@ func PrepareCopy(source, destination, version string) (err error) {
 			if err := os.Mkdir(target, 0700); err != nil {
 				return err
 			}
-			modes = append(modes, directoryMode{path: target, mode: entryInfo.Mode().Perm()})
+			modes = append(modes, directoryMode{path: target, mode: entryInfo.Mode()})
 			return nil
 		case entryInfo.Mode()&os.ModeSymlink != 0:
 			link, err := os.Readlink(name)
@@ -99,7 +99,7 @@ func PrepareCopy(source, destination, version string) (err error) {
 			}
 			return os.Symlink(link, target)
 		case entryInfo.Mode().IsRegular():
-			return copyRegular(name, target, entryInfo.Mode().Perm())
+			return copyRegular(name, target, entryInfo.Mode())
 		default:
 			return fmt.Errorf("unsupported glenv source entry: %s", name)
 		}
