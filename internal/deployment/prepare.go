@@ -52,6 +52,16 @@ func PrepareCopy(source, destination, version string) (err error) {
 	if err != nil {
 		return err
 	}
+	// The original glenv installer uses .glenv-prefix to establish ownership
+	// for uninstall/purge. Never copy that marker to a new deployment or it
+	// could later be mistaken for an installed original prefix.
+	entries := manifest.Entries[:0]
+	for _, entry := range manifest.Entries {
+		if entry.Path != ".glenv-prefix" {
+			entries = append(entries, entry)
+		}
+	}
+	manifest.Entries = entries
 	if err := os.Mkdir(dst, 0700); err != nil {
 		return err // never overwrite an existing directory or symlink
 	}
@@ -77,8 +87,8 @@ func PrepareCopy(source, destination, version string) (err error) {
 		if err != nil {
 			return err
 		}
-		if filepath.ToSlash(relative) == "glenv-manifest.json" {
-			return nil // replace any old inventory, not its content
+		if filepath.ToSlash(relative) == "glenv-manifest.json" || filepath.ToSlash(relative) == ".glenv-prefix" {
+			return nil // skip old inventory and original installer ownership marker
 		}
 		target := filepath.Join(dst, relative)
 		entryInfo, err := os.Lstat(name)
