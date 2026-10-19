@@ -35,6 +35,8 @@ func (r Runtime) PluginEnvironment(machine elf.Machine) map[string]string {
         "PIPEWIRE_CONFIG_DIR": {"usr/share/pipewire","etc/pipewire"},
         "SPA_DATA_DIR": {"usr/share/spa-0.2"},
         "GI_TYPELIB_PATH": {"usr/lib/"+abi+"/girepository-1.0"},
+        "GIO_EXTRA_MODULES": {"usr/lib/"+abi+"/gio/modules"},
+        "GSETTINGS_SCHEMA_DIR": {"usr/share/glib-2.0/schemas"},
     }
     result:=make(map[string]string)
     for name,candidates:=range options{
