@@ -65,3 +65,23 @@ func TestReadPublicKey(t *testing.T){
  if _,err:=ReadPublicKey(keyfile);err==nil{t.Fatal("accepted invalid key")}
  if _,err:=VerifySigned(root,loaded);err!=nil{t.Fatal(err)}
 }
+
+func TestVerifySignedRejectsOversizedSignature(t *testing.T){
+ root,pub:=signedFixture(t)
+ huge:=make([]byte,maxSignatureBytes+1)
+ for i:=range huge{huge[i]='A'}
+ if err:=os.WriteFile(filepath.Join(root,"glenv-manifest.json.sig"),huge,0644);err!=nil{t.Fatal(err)}
+ if _,err:=VerifySigned(root,pub);err==nil{t.Fatal("accepted oversized signature")}
+}
+func TestReadPublicKeyRejectsSymlinkAndOversize(t *testing.T){
+ _,pub:=signedFixture(t)
+ dir:=t.TempDir()
+ real:=filepath.Join(dir,"real.pub")
+ key:=filepath.Join(dir,"linked.pub")
+ if err:=os.WriteFile(real,[]byte(base64.StdEncoding.EncodeToString(pub)),0644);err!=nil{t.Fatal(err)}
+ if err:=os.Symlink(real,key);err!=nil{t.Fatal(err)}
+ if _,err:=ReadPublicKey(key);err==nil{t.Fatal("accepted symlinked trust key")}
+ oversize:=filepath.Join(dir,"huge.pub")
+ if err:=os.WriteFile(oversize,make([]byte,maxTrustedPublicKeyBytes+1),0644);err!=nil{t.Fatal(err)}
+ if _,err:=ReadPublicKey(oversize);err==nil{t.Fatal("accepted oversized trust key")}
+}
