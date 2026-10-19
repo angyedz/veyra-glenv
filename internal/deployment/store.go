@@ -37,9 +37,20 @@ func (s Store) verifyStoreRoot()error{
  if !info.IsDir()||info.Mode()&os.ModeSymlink!=0{return errors.New("store root must be a real directory")}
  return nil
 }
+func (s Store) verifyVersionsDir()error{
+ info,err:=os.Lstat(filepath.Join(s.Root,"versions"))
+ if err!=nil{return err}
+ if !info.IsDir()||info.Mode()&os.ModeSymlink!=0{
+  return errors.New("versions directory must be a real directory")
+ }
+ return nil
+}
 func (s Store) Setup()error{
  if err:=s.verifyStoreRoot();err!=nil{return err}
- return os.MkdirAll(filepath.Join(s.Root,"versions"),0755)
+ if err:=os.MkdirAll(s.Root,0755);err!=nil{return err}
+ versions:=filepath.Join(s.Root,"versions")
+ if err:=os.Mkdir(versions,0755);err!=nil&&!os.IsExist(err){return err}
+ return s.verifyVersionsDir()
 }
 func readTree(dir string)(TreeManifest,error){
  var m TreeManifest
@@ -49,6 +60,7 @@ func readTree(dir string)(TreeManifest,error){
 }
 func (s Store) Verify(version string)error{
  if err:=s.verifyStoreRoot();err!=nil{return err}
+ if err:=s.verifyVersionsDir();err!=nil{return err}
  dir,err:=s.release(version);if err!=nil{return err}
  info,err:=os.Lstat(dir);if err!=nil{return err}
  if !info.IsDir()||info.Mode()&os.ModeSymlink!=0{return errors.New("release must be a real directory")}
