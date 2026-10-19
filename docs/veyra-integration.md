@@ -86,3 +86,15 @@ glenv release --store /var/lib/veyra/glenv verify glenv-v3
 `prepare-copy` preserves Debian absolute symlink text, regular files, executable permissions, directory permissions and the original `lib/glenv-wayland-filter.so`, without modifying the source. Its **format-3** inventory includes SHA-256 hashes, link targets and Unix permission bits. Changes to file modes (including execute/setuid) fail verification. Older **format-2** manifests are still supported for compatibility, but they cannot detect permission changes and should not be accepted for a new production OTA release.
 
 This operation only prepares a local copy. It does not fetch Debian packages, resolve dependencies, authenticate upstream glenv, create a safe live snapshot, or activate an update. The source must not be written while it is inventoried and copied; a read-only offline source is strongly preferred. Do not run the original glenv installer into a live Veyra root as part of this command.
+
+## Detached release signature verification (development)
+
+A new opt-in verifier accepts a format-3 `glenv-manifest.json`, the detached `glenv-manifest.json.sig` (standard Base64-encoded 64-byte Ed25519 signature of the **exact manifest bytes**), and a **separately trusted** Ed25519 public key file (standard Base64-encoded 32-byte public key):
+
+```sh
+glenv release verify-signed /staging/glenv-v1 /path/to/trusted-glenv-ed25519.pub
+```
+
+The verifier checks the signature **before** interpreting the manifest, then hashes all listed files and verifies the complete tree, directory and file modes, and symlink targets. Signed metadata files are excluded from the tree inventory to prevent self-referential hashes. Missing, malformed, or untrusted signatures fail closed.
+
+**Not yet enforced by deployment commands:** `stage`, `pair-host`, and `boot-pair-pin` still only use local integrity checks and can accept unsigned releases. Therefore no part of this prototype should be described as a complete authenticated OTA chain. Veyra's eventual privileged updater must pin a trusted public key through a signed host deployment, reject unsigned stages, protect immutable runtime storage, and support key rotation and replay-resistant deployment IDs. Never obtain the trust key from within the untrusted glenv release itself.
