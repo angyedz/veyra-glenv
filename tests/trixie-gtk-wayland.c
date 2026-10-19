@@ -32,6 +32,36 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Required GTK3 functions missing\n");
         return EXIT_FAILURE;
     }
+    /* This catches missing image plugins before GTK's fatal fallback path. */
+    void *pixbuf = dlopen("libgdk_pixbuf-2.0.so.0", RTLD_NOW | RTLD_LOCAL);
+    if (!pixbuf) {
+        fprintf(stderr, "Cannot load Debian gdk-pixbuf: %s\n", dlerror());
+        return EXIT_FAILURE;
+    }
+    struct glist { void *data; struct glist *next; };
+    struct glist *(*get_formats)(void) =
+        (struct glist *(*)(void))dlsym(pixbuf, "gdk_pixbuf_get_formats");
+    const char *(*get_format_name)(void *) =
+        (const char *(*)(void *))dlsym(pixbuf, "gdk_pixbuf_format_get_name");
+    if (!get_formats || !get_format_name) {
+        fprintf(stderr, "Debian gdk-pixbuf format discovery API missing\n");
+        return EXIT_FAILURE;
+    }
+    int png_found = 0;
+    for (struct glist *it = get_formats(); it; it = it->next) {
+        const char *format = get_format_name(it->data);
+        if (format) {
+            fprintf(stderr, "Debian gdk-pixbuf registered: %s\n", format);
+            if (format[0] == 'p' && format[1] == 'n' && format[2] == 'g' &&
+                format[3] == '\0') {
+                png_found = 1;
+            }
+        }
+    }
+    if (!png_found) {
+        fprintf(stderr, "Debian gdk-pixbuf PNG decoder was not registered\n");
+        return EXIT_FAILURE;
+    }
     if (!init_check(&argc, &argv)) {
         fprintf(stderr, "GTK could not initialize its Wayland display\n");
         return EXIT_FAILURE;
