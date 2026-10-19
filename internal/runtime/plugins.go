@@ -19,6 +19,17 @@ func (r Runtime) DirectoryInSysroot(relative string) string {
     return resolved
 }
 
+// FileInSysroot resolves a regular metadata file within the selected Debian
+// sysroot, without following absolute symlinks into the musl host.
+func (r Runtime) FileInSysroot(relative string) string {
+    if r.Sysroot==""{return ""}
+    resolved,err:=resolveInSysroot(r.Sysroot,relative)
+    if err!=nil||!within(r.Sysroot,resolved){return ""}
+    info,err:=os.Stat(resolved)
+    if err!=nil||!info.Mode().IsRegular(){return ""}
+    return resolved
+}
+
 // PluginEnvironment selects glibc-native PipeWire, SPA and GTK/GI metadata.
 // Only existing directories inside the selected Debian runtime are published.
 // They are runtime-owned paths, never Alpine/musl host module directories.
@@ -37,6 +48,7 @@ func (r Runtime) PluginEnvironment(machine elf.Machine) map[string]string {
         "GI_TYPELIB_PATH": {"usr/lib/"+abi+"/girepository-1.0"},
         "GIO_EXTRA_MODULES": {"usr/lib/"+abi+"/gio/modules"},
         "GSETTINGS_SCHEMA_DIR": {"usr/share/glib-2.0/schemas"},
+        "GDK_PIXBUF_MODULEDIR": {"usr/lib/"+abi+"/gdk-pixbuf-2.0/2.10.0/loaders"},
     }
     result:=make(map[string]string)
     for name,candidates:=range options{
@@ -46,6 +58,12 @@ func (r Runtime) PluginEnvironment(machine elf.Machine) map[string]string {
                 break
             }
         }
+    }
+    // A loader cache is needed for GTK's built-in icons and application
+    // images. Its contents must be relocatable or generated for the exact
+    // runtime mountpoint: Debian's stock cache may embed /usr/lib paths.
+    if file:=r.FileInSysroot("usr/lib/"+abi+"/gdk-pixbuf-2.0/2.10.0/loaders.cache");file!=""{
+        result["GDK_PIXBUF_MODULE_FILE"]=file
     }
     return result
 }
