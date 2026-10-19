@@ -81,3 +81,5 @@ glenv release --store /var/lib/veyra/glenv verify glenv-2026-10
 ```
 
 The source is never moved or modified; output must not exist beforehand. New manifests use **format 3** with SHA-256 file hashes, exact symlink targets, and Unix permission bits. The original Wayland shim binary is copied, not rewritten. Format 2 remains readable for compatibility but does not detect permission changes. The resulting tree is still not signed, mounted read-only, or automatically boot-activated.
+
+**Original-prefix safety:** `release stage` moves its input staging directory, so it refuses the installed `/opt/glibc-env` tree and any source carrying the original installer's `.glenv-prefix` ownership marker. `prepare-copy` deliberately omits this administrative marker from the new release, while leaving it untouched on the original source. Everything else in the trusted offline prefix, including the full Debian sysroot and Wayland filter, is copied and checked. Never use `stage` directly on your working glenv installation.
