@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/angyedz/veyra-glenv/internal/elfinfo"
@@ -93,21 +94,41 @@ func (p Plan) Command() *exec.Cmd {
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
+	// A musl-native host may have its own SPA and PipeWire module paths.
+	// Never inherit those for a glibc process when the selected runtime
+	// provides ABI-matching plugin directories.
+	overrides := p.Runtime.PluginEnvironment(p.Binary.Machine)
 	if p.Preload != "" {
-		var environment []string
-		var prior string
-		for _, entry := range os.Environ() {
-			if strings.HasPrefix(entry, "LD_PRELOAD=") {
-				prior = strings.TrimPrefix(entry, "LD_PRELOAD=")
-				continue
-			}
-			environment = append(environment, entry)
-		}
+		prior := os.Getenv("LD_PRELOAD")
 		preload := p.Preload
 		if prior != "" {
 			preload += ":" + prior
 		}
-		command.Env = append(environment, "LD_PRELOAD="+preload)
+		if overrides == nil {
+			overrides = make(map[string]string)
+		}
+		overrides["LD_PRELOAD"] = preload
+	}
+	if len(overrides) > 0 {
+		var environment []string
+		for _, entry := range os.Environ() {
+			key, _, ok := strings.Cut(entry, "=")
+			if !ok {
+				continue
+			}
+			if _, replace := overrides[key]; !replace {
+				environment = append(environment, entry)
+			}
+		}
+		keys := make([]string, 0, len(overrides))
+		for key := range overrides {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			environment = append(environment, key+"="+overrides[key])
+		}
+		command.Env = environment
 	}
 	return command
 }
