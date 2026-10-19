@@ -98,3 +98,13 @@ glenv release verify-signed /staging/glenv-v1 /path/to/trusted-glenv-ed25519.pub
 The verifier checks the signature **before** interpreting the manifest, then hashes all listed files and verifies the complete tree, directory and file modes, and symlink targets. Signed metadata files are excluded from the tree inventory to prevent self-referential hashes. Missing, malformed, or untrusted signatures fail closed.
 
 **Not yet enforced by deployment commands:** `stage`, `pair-host`, and `boot-pair-pin` still only use local integrity checks and can accept unsigned releases. Therefore no part of this prototype should be described as a complete authenticated OTA chain. Veyra's eventual privileged updater must pin a trusted public key through a signed host deployment, reject unsigned stages, protect immutable runtime storage, and support key rotation and replay-resistant deployment IDs. Never obtain the trust key from within the untrusted glenv release itself.
+
+### Authenticated boot pin (opt-in)
+
+A future Veyra boot coordinator that already has a **trusted, pinned Ed25519 public key** can select a paired runtime with an additional signature verification gate:
+
+```sh
+glenv release --store /var/lib/veyra/glenv boot-pair-pin-signed veyra-host-v1 /run/glenv/selected /etc/veyra/trust/glenv-ed25519.pub
+```
+
+Unlike `boot-pair-pin`, this refuses absent signatures and format-2 releases, rejects unknown public keys, and checks the selected release's complete format-3 manifest before pinning. It never generates or downloads a key. This is not switched on automatically: the ISO does not yet provision trusted host deployment metadata or a trusted glenv signing key. The boot coordinator must hold the version store immutable while verifying and mounting, must authenticate the host ID and deployment mapping itself, and must mount the exact pinned generation read-only into host and user environments.
