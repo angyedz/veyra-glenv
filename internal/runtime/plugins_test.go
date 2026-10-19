@@ -60,3 +60,14 @@ func TestGdkPixbufEnvironmentPrefersDebian(t *testing.T){
   t.Fatalf("accepted escaping pixbuf cache symlink: %s",actual)
  }
 }
+
+func TestGtkResourcesPreferDebianWithoutLosingHostData(t *testing.T){
+ root:=t.TempDir()
+ sysroot:=filepath.Join(root,"sysroot")
+ share:=filepath.Join(sysroot,"usr/share")
+ if err:=os.MkdirAll(share,0755);err!=nil{t.Fatal(err)}
+ t.Setenv("XDG_DATA_DIRS","/host/share:/usr/share")
+ selected:=Runtime{Root:root,Sysroot:sysroot}
+ value:=selected.PluginEnvironment(elf.EM_X86_64)["XDG_DATA_DIRS"]
+ if value!=share+":/host/share:/usr/share"{t.Fatalf("wrong XDG_DATA_DIRS: %q",value)}
+}
