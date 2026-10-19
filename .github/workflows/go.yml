@@ -27,6 +27,8 @@ jobs:
         run: gofmt -w cmd internal
       - name: Unit and regression tests
         run: go test -count=1 -race ./...
+      - name: Signed manifest regression tests
+        run: go test -count=1 -run 'TestVerifySigned|TestReadPublicKey' ./internal/deployment
       - name: Vet
         run: go vet ./...
       - name: Build
