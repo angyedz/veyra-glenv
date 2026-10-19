@@ -42,7 +42,7 @@ func run(args []string)int{
   storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   rest:=fs.Args()
-  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <inventory|verify|stage|activate|pin|rollback|status> ...");return 2}
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <inventory|verify|stage|activate|pin|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
   store:=deployment.Store{Root:*storeRoot}
   switch rest[0]{
   case "inventory":
@@ -62,6 +62,16 @@ func run(args []string)int{
   case "pin":
    if len(rest)!=2{return 2}
    if err:=store.Pin(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "bind-host":
+   if len(rest)!=3{return 2}
+   if err:=store.BindHost(rest[1],rest[2]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "boot-pin":
+   if len(rest)!=3{return 2}
+   if err:=store.PinForHost(rest[1],rest[2]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "boot-status":
+   if len(rest)!=1{return 2}
+   binding,err:=store.ReadBinding();if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   fmt.Printf("host: %s\\nglenv: %s\\n",binding.HostDeployment,binding.GlenvVersion)
   case "rollback":
    if len(rest)!=1{return 2}
    if err:=store.Rollback();err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
