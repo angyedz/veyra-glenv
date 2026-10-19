@@ -88,3 +88,18 @@ func TestSelectorWillNotReplaceForeignFile(t *testing.T){
  if err:=os.WriteFile(filepath.Join(s.Root,"current"),[]byte("foreign"),0600);err!=nil{t.Fatal(err)}
  if err:=s.Activate("v1");err==nil{t.Fatal("overwrote foreign selector file")}
 }
+
+func TestStoreRejectsSymlinkVersionsDir(t *testing.T){
+ base:=t.TempDir()
+ root:=filepath.Join(base,"store")
+ if err:=os.Mkdir(root,0755);err!=nil{t.Fatal(err)}
+ external:=filepath.Join(base,"external")
+ if err:=os.Mkdir(external,0755);err!=nil{t.Fatal(err)}
+ if err:=os.Symlink(external,filepath.Join(root,"versions"));err!=nil{t.Fatal(err)}
+ s:=Store{Root:root}
+ if err:=s.Setup();err==nil{t.Fatal("accepted symlink versions directory")}
+ src:=fixture(t,base,"v1")
+ if err:=s.Stage(src,"v1");err==nil{t.Fatal("staged through symlinked versions directory")}
+ if err:=s.Verify("v1");err==nil{t.Fatal("verified through symlinked versions directory")}
+ if _,err:=os.Stat(filepath.Join(external,"v1"));!os.IsNotExist(err){t.Fatalf("wrote outside store: %v",err)}
+}
