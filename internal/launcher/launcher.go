@@ -22,6 +22,7 @@ type Plan struct {
 	Runtime glruntime.Runtime
 	Loader  string
 	Args    []string
+	Preload string // optional original glenv Wayland filter
 }
 
 // PlanFor accepts an executable path or an executable name from PATH.
@@ -76,9 +77,13 @@ func PlanFor(root, program string, args []string) (Plan, error) {
 	if len(libraries) == 0 {
 		return Plan{}, fmt.Errorf("no library directories found in runtime %s", selected.Sysroot)
 	}
+	shim, err := waylandFilter(selected.Root, binary.Machine)
+	if err != nil {
+		return Plan{}, err
+	}
 	argv := []string{loader, "--library-path", strings.Join(libraries, ":"), absolute}
 	argv = append(argv, args...)
-	return Plan{Binary: binary, Runtime: selected, Loader: loader, Args: argv}, nil
+	return Plan{Binary: binary, Runtime: selected, Loader: loader, Args: argv, Preload: shim}, nil
 }
 
 // Command runs a plan as the current user, inheriting the environment and cwd.
@@ -88,6 +93,22 @@ func (p Plan) Command() *exec.Cmd {
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
+	if p.Preload != "" {
+		var environment []string
+		var prior string
+		for _, entry := range os.Environ() {
+			if strings.HasPrefix(entry, "LD_PRELOAD=") {
+				prior = strings.TrimPrefix(entry, "LD_PRELOAD=")
+				continue
+			}
+			environment = append(environment, entry)
+		}
+		preload := p.Preload
+		if prior != "" {
+			preload += ":" + prior
+		}
+		command.Env = append(environment, "LD_PRELOAD="+preload)
+	}
 	return command
 }
 
@@ -97,4 +118,37 @@ func MachineName(machine elf.Machine) string {
 		return name
 	}
 	return fmt.Sprint(machine)
+}
+
+// waylandFilter deliberately reuses the original glenv filter binary rather
+// than changing the protocol workaround or copying GPL-3 source into this
+// module. The filter is optional in minimal runtime presets.
+func waylandFilter(prefix string, machine elf.Machine) (string, error) {
+	candidate := filepath.Join(prefix, "lib", "glenv-wayland-filter.so")
+	info, err := os.Stat(candidate)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("glenv Wayland filter is not a regular file: %s", candidate)
+	}
+	actual, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(prefix, actual)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("glenv Wayland filter escapes runtime root")
+	}
+	binary, err := elfinfo.Inspect(actual)
+	if err != nil {
+		return "", fmt.Errorf("invalid glenv Wayland filter: %w", err)
+	}
+	if binary.Type != elf.ET_DYN || binary.Machine != machine || binary.Class != elf.ELFCLASS64 {
+		return "", errors.New("glenv Wayland filter ABI does not match target program")
+	}
+	return actual, nil
 }
