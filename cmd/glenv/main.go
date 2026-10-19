@@ -42,7 +42,7 @@ func run(args []string)int{
   storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   rest:=fs.Args()
-  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify-signed|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|boot-pair-pin-signed|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify-signed|verify|stage|stage-signed|activate|pin|pair-host|pair-status|boot-pair-pin|boot-pair-pin-signed|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
   store:=deployment.Store{Root:*storeRoot}
   switch rest[0]{
   case "prepare-copy":
@@ -64,6 +64,10 @@ func run(args []string)int{
   case "stage":
    if len(rest)!=3{return 2}
    if err:=store.Stage(rest[1],rest[2]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+  case "stage-signed":
+   if len(rest)!=4{return 2}
+   key,err:=deployment.ReadPublicKey(rest[3]);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   if err:=store.StageSigned(rest[1],rest[2],key);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
   case "activate":
    if len(rest)!=2{return 2}
    if err:=store.Activate(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
