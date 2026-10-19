@@ -40,3 +40,23 @@ func TestPluginEnvironmentRejectsEscapingSymlink(t *testing.T){
   t.Fatalf("accepted escaping SPA module directory: %s",actual)
  }
 }
+
+func TestGdkPixbufEnvironmentPrefersDebian(t *testing.T){
+ root:=t.TempDir()
+ sysroot:=filepath.Join(root,"sysroot")
+ dir:=filepath.Join(sysroot,"usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0")
+ if err:=os.MkdirAll(filepath.Join(dir,"loaders"),0755);err!=nil{t.Fatal(err)}
+ cache:=filepath.Join(dir,"loaders.cache")
+ if err:=os.WriteFile(cache,[]byte("Debian fixture"),0644);err!=nil{t.Fatal(err)}
+ selected:=Runtime{Root:root,Sysroot:sysroot}
+ env:=selected.PluginEnvironment(elf.EM_X86_64)
+ if env["GDK_PIXBUF_MODULEDIR"]!=filepath.Join(dir,"loaders"){t.Fatalf("wrong pixbuf module dir: %+v",env)}
+ if env["GDK_PIXBUF_MODULE_FILE"]!=cache{t.Fatalf("wrong pixbuf cache: %+v",env)}
+ if err:=os.Remove(cache);err!=nil{t.Fatal(err)}
+ outside:=filepath.Join(t.TempDir(),"loaders.cache")
+ if err:=os.WriteFile(outside,[]byte("foreign"),0644);err!=nil{t.Fatal(err)}
+ if err:=os.Symlink(outside,cache);err!=nil{t.Fatal(err)}
+ if actual:=selected.PluginEnvironment(elf.EM_X86_64)["GDK_PIXBUF_MODULE_FILE"];actual!=""{
+  t.Fatalf("accepted escaping pixbuf cache symlink: %s",actual)
+ }
+}
