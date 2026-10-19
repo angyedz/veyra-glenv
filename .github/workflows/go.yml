@@ -49,6 +49,14 @@ jobs:
           /tmp/glenv release --store /tmp/glenv-ci-store activate fixture-1
           /tmp/glenv release --store /tmp/glenv-ci-store pin /tmp/glenv-boot/runtime
           test "$(basename "$(readlink /tmp/glenv-boot/runtime)")" = fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store bind-host veyra-test-1 fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store boot-status
+          if /tmp/glenv release --store /tmp/glenv-ci-store boot-pin veyra-wrong /tmp/glenv-boot/paired; then
+            echo "Cross-deployment pin unexpectedly succeeded" >&2
+            exit 1
+          fi
+          /tmp/glenv release --store /tmp/glenv-ci-store boot-pin veyra-test-1 /tmp/glenv-boot/paired
+          test "$(basename "$(readlink /tmp/glenv-boot/paired)")" = fixture-1
           /tmp/glenv release --store /tmp/glenv-ci-store status
   alpine:
     name: Alpine musl compilation and tests
