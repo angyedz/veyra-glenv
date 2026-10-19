@@ -61,9 +61,12 @@ jobs:
           mkdir -p "$source/sysroot/usr/lib/x86_64-linux-gnu" "$source/lib"
           printf 'Debian libc fixture' > "$source/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
           printf 'Original Wayland shim fixture' > "$source/lib/glenv-wayland-filter.so"
+          printf 'Installer owns original prefix' > "$source/.glenv-prefix"
           ln -s /usr/lib/x86_64-linux-gnu/libc.so.6 "$source/sysroot/libc.so.6"
           /tmp/glenv release prepare-copy "$source" "$prepared" copy-v1
           test -f "$source/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
+          test -f "$source/.glenv-prefix"
+          test ! -e "$prepared/.glenv-prefix"
           test "$(readlink "$prepared/sysroot/libc.so.6")" = /usr/lib/x86_64-linux-gnu/libc.so.6
           /tmp/glenv release --store /tmp/glenv-copy-store stage "$prepared" copy-v1
           /tmp/glenv release --store /tmp/glenv-copy-store verify copy-v1
