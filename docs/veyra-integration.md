@@ -39,7 +39,7 @@ The `internal/deployment` package verifies `glenv-manifest.json` with `format: 1
 
 No privileged deployment or OTA switch is implemented.
 
-## Complete tree verification (format 2)
+## Complete tree verification (format 3)
 
 The new `deployment.Inventory(root, version)` produces a deterministic inventory of regular files (SHA-256), directories and symbolic links (literal link targets). `deployment.VerifyTree` detects changed content, changed link targets, and unexpected/missing tree entries without following symlinks. The `glenv-manifest.json` file is excluded from the inventory to avoid recursive hashing. This is a **local integrity check**, not proof of publisher authenticity; an OTA implementation must authenticate its signed release metadata and verify the release tree before activation.
 
@@ -47,7 +47,7 @@ The current implementation **does not install, mount, switch, or garbage-collect
 
 ## Version-store prototype (implemented)
 
-The `glenv release` CLI now offers `inventory`, `stage`, `verify`, `activate`, `pin`, `rollback` and `status`. The store is configurable with `--store` (default `/var/lib/veyra/glenv`). A staged source directory must contain `glenv-manifest.json` format 2; generate that file with `glenv release inventory <dir> <version> > <dir>/glenv-manifest.json`. `stage` verifies the complete tree and renames it into `versions/<version>` on the **same filesystem**. `activate` atomically replaces the `current` symlink; `previous` keeps the last selected version for an operator-initiated rollback. `pin` creates a boot-specific symlink to a verified generation and does **not** follow subsequent selection updates.
+The `glenv release` CLI now offers `inventory`, `stage`, `verify`, `activate`, `pin`, `rollback` and `status`. The store is configurable with `--store` (default `/var/lib/veyra/glenv`). A staged source directory must contain `glenv-manifest.json` format 3; generate that file with `glenv release inventory <dir> <version> > <dir>/glenv-manifest.json`. `stage` verifies the complete tree and renames it into `versions/<version>` on the **same filesystem**. `activate` atomically replaces the `current` symlink; `previous` keeps the last selected version for an operator-initiated rollback. `pin` creates a boot-specific symlink to a verified generation and does **not** follow subsequent selection updates.
 
 This is **not yet an atomic Veyra host OTA implementation**. Two selector symlinks are not one crash-consistent multi-object transaction; a boot coordinator must pair host deployment and runtime release in one validated boot record. The pin itself is not a bind mount. No mount namespace setup, read-only enforcement, signature verification, unattended update, or original glenv Debian package builder is installed here. Do not run `activate` on a production machine before integrating a privileged boot coordinator, signature validation, and protected read-only generation storage.
 
@@ -70,3 +70,19 @@ glenv release --store /var/lib/veyra/glenv boot-pair-pin veyra-A /run/glenv/runt
 `pair-host` writes `deployment-pairs/<hostID>.json` using an atomic **create-if-absent** hard-link transaction after validating that the referenced glenv tree exists and passes its manifest. Repeating exactly the same mapping is allowed, but repointing an existing Veyra host ID to another runtime is rejected. When Veyra's bootloader rolls back from slot B to slot A, `boot-pair-pin veyra-A` selects A's **original** runtime even if glenv's global `current` pointer still points to B.
 
 `boot-pair-pin` is a selector, **not a signed boot manager**. Veyra must provide the authentic selected host deployment ID, read-only versions, signature verification, durable image-update orchestration and read-only mount propagation before this can become a production OTA system. For legacy tests, `bind-host` and `boot-pin` remain available, but Veyra integration should use the per-host commands.
+
+## Offline preparation and mode-aware integrity
+
+The safe preparation workflow is now:
+
+```sh
+# The source is an OFFLINE, quiescent original glenv prefix. It is NOT moved.
+glenv release prepare-copy /offline/glenv-prefix /staging/glenv-v3 glenv-v3
+# A complete mode-aware manifest has been written to the new copy:
+glenv release --store /var/lib/veyra/glenv stage /staging/glenv-v3 glenv-v3
+glenv release --store /var/lib/veyra/glenv verify glenv-v3
+```
+
+`prepare-copy` preserves Debian absolute symlink text, regular files, executable permissions, directory permissions and the original `lib/glenv-wayland-filter.so`, without modifying the source. Its **format-3** inventory includes SHA-256 hashes, link targets and Unix permission bits. Changes to file modes (including execute/setuid) fail verification. Older **format-2** manifests are still supported for compatibility, but they cannot detect permission changes and should not be accepted for a new production OTA release.
+
+This operation only prepares a local copy. It does not fetch Debian packages, resolve dependencies, authenticate upstream glenv, create a safe live snapshot, or activate an update. The source must not be written while it is inventoried and copied; a read-only offline source is strongly preferred. Do not run the original glenv installer into a live Veyra root as part of this command.
