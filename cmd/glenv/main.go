@@ -42,7 +42,7 @@ func run(args []string)int{
   storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   rest:=fs.Args()
-  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify-signed|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
   store:=deployment.Store{Root:*storeRoot}
   switch rest[0]{
   case "prepare-copy":
@@ -53,6 +53,11 @@ func run(args []string)int{
    m,err:=deployment.Inventory(rest[1],rest[2]);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
    encoded,err:=json.MarshalIndent(m,"","  ");if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
    fmt.Println(string(encoded));return 0
+  case "verify-signed":
+   if len(rest)!=3{return 2}
+   key,err:=deployment.ReadPublicKey(rest[2]);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   manifest,err:=deployment.VerifySigned(rest[1],key);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
+   fmt.Printf("verified signed glenv release: %s\n",manifest.Version)
   case "verify":
    if len(rest)!=2{return 2}
    if err:=store.Verify(rest[1]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
