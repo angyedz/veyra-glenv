@@ -82,6 +82,9 @@ func TestPerDeploymentPairRejectsForeignSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(store.Root, pairsDirectory)
+	if _, err := store.pairsDir(true); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
