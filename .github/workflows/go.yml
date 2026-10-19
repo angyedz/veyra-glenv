@@ -72,7 +72,14 @@ jobs:
             exit 1
           fi
           /tmp/glenv release --store /tmp/glenv-ci-store boot-pin veyra-test-1 /tmp/glenv-boot/paired
-          test "$(basename "$(readlink /tmp/glenv-boot/paired)")" = fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store pair-host veyra-slot-A fixture-1
+          /tmp/glenv release --store /tmp/glenv-ci-store pair-status veyra-slot-A
+          /tmp/glenv release --store /tmp/glenv-ci-store boot-pair-pin veyra-slot-A /tmp/glenv-boot/slot-A
+          test "$(basename "$(readlink /tmp/glenv-boot/slot-A)")" = fixture-1
+          if /tmp/glenv release --store /tmp/glenv-ci-store boot-pair-pin missing-slot /tmp/glenv-boot/slot-X; then
+            echo "Unknown Veyra slot unexpectedly succeeded" >&2
+            exit 1
+          fi
           /tmp/glenv release --store /tmp/glenv-ci-store status
   alpine:
     name: Alpine musl compilation and tests
