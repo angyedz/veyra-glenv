@@ -65,5 +65,18 @@ func (r Runtime) PluginEnvironment(machine elf.Machine) map[string]string {
     if file:=r.FileInSysroot("usr/lib/"+abi+"/gdk-pixbuf-2.0/2.10.0/loaders.cache");file!=""{
         result["GDK_PIXBUF_MODULE_FILE"]=file
     }
+    // GTK icons, MIME metadata and other non-executable desktop resources
+    // also live under Debian's /usr/share. Without this, GTK sees only
+    // Alpine's icon themes and falls back to resources that can fail to load.
+    if share:=r.DirectoryInSysroot("usr/share");share!="" {
+        inherited:=os.Getenv("XDG_DATA_DIRS")
+        if inherited==""{inherited="/usr/local/share:/usr/share"}
+        result["XDG_DATA_DIRS"]=share+":"+inherited
+    }
+    if xdg:=r.DirectoryInSysroot("etc/xdg");xdg!=""{
+        inherited:=os.Getenv("XDG_CONFIG_DIRS")
+        if inherited==""{inherited="/etc/xdg"}
+        result["XDG_CONFIG_DIRS"]=xdg+":"+inherited
+    }
     return result
 }
