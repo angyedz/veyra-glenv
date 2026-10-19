@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'tests/trixie-probe.c'
+      - 'tests/trixie-wayland-client.c'
       - '.github/workflows/trixie-sysroot.yml'
       - 'internal/launcher/**'
       - 'internal/runtime/**'
@@ -39,6 +40,7 @@ jobs:
           set -euo pipefail
           CGO_ENABLED=0 go build -trimpath -o /tmp/glenv-trixie ./cmd/glenv
           gcc -O2 -Wall -Wextra -Werror -o /tmp/glenv-trixie-probe tests/trixie-probe.c -ldl
+          gcc -O2 -Wall -Wextra -Werror -o /tmp/glenv-trixie-wayland tests/trixie-wayland-client.c -ldl
       - name: Install real Debian Trixie userspace in disposable Docker container
         shell: bash
         run: |
@@ -69,7 +71,7 @@ jobs:
           gcc -shared -fPIC -O2 -nostdlib \
             -o "$root/runtime/lib/glenv-wayland-filter.so" \
             original-glenv/src/shim/glenv-wayland-filter.c
-          cp /tmp/glenv-trixie /tmp/glenv-trixie-probe "$root/"
+          cp /tmp/glenv-trixie /tmp/glenv-trixie-probe /tmp/glenv-trixie-wayland "$root/"
           test -f "$root/runtime/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
           du -sh "$root/runtime/sysroot"
       - name: Run real Debian glibc ELF on Alpine musl host
@@ -94,6 +96,45 @@ jobs:
               grep -F "OK GTK 3" /tmp/probe-output
               grep -F "OK EGL/GLVND" /tmp/probe-output
               grep -F "OK Wayland client" /tmp/probe-output
+            '
+      - name: Connect Debian-glibc Wayland client to real musl Weston
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$VEYRA_TRIXIE_ROOT"
+          docker run --rm \
+            -v "$root:$root:ro" \
+            -e GLENV_TRIXIE_ROOT="$root" \
+            alpine:3.22 sh -ec '
+              apk add --no-cache weston weston-backend-headless weston-shell-desktop
+              base=$GLENV_TRIXIE_ROOT
+              export XDG_RUNTIME_DIR=/tmp/veyra-wayland-$
+              mkdir -p "$XDG_RUNTIME_DIR"
+              chmod 0700 "$XDG_RUNTIME_DIR"
+              export WAYLAND_DISPLAY=veyra-ci
+              weston --backend=headless --renderer=pixman \
+                --socket=veyra-ci --idle-time=0 --log=/tmp/weston.log &
+              server=$!
+              trap "kill $server 2>/dev/null || true" EXIT
+              ready=0
+              for attempt in 1 2 3 4 5 6 7 8 9 10; do
+                if [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+                  ready=1
+                  break
+                fi
+                if ! kill -0 "$server" 2>/dev/null; then
+                  cat /tmp/weston.log >&2
+                  exit 1
+                fi
+                sleep 1
+              done
+              if [ "$ready" -ne 1 ]; then
+                cat /tmp/weston.log >&2
+                echo "Weston Wayland socket was not created" >&2
+                exit 1
+              fi
+              "$base/glenv-trixie" run --runtime "$base/runtime" \
+                "$base/glenv-trixie-wayland"
             '
       - name: Clean up disposable Debian container
         if: always()
