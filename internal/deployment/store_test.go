@@ -62,3 +62,29 @@ func TestStoreRejectsAncestorStage(t *testing.T){
  if err:=os.WriteFile(filepath.Join(base,"glenv-manifest.json"),data,0644);err!=nil{t.Fatal(err)}
  if err:=s.Stage(base,"v1");err==nil{t.Fatal("accepted ancestor of version store")}
 }
+
+func TestStoreRejectsSymlinkRoot(t *testing.T){
+ base:=t.TempDir()
+ actual:=filepath.Join(base,"real")
+ if err:=os.Mkdir(actual,0755);err!=nil{t.Fatal(err)}
+ link:=filepath.Join(base,"link")
+ if err:=os.Symlink(actual,link);err!=nil{t.Fatal(err)}
+ s:=Store{Root:link}
+ if err:=s.Setup();err==nil{t.Fatal("accepted symlink store root")}
+}
+func TestStoreRejectsSymlinkRelease(t *testing.T){
+ base:=t.TempDir()
+ s:=Store{Root:filepath.Join(base,"store")}
+ if err:=s.Setup();err!=nil{t.Fatal(err)}
+ outside:=fixture(t,base,"v1")
+ if err:=os.Symlink(outside,filepath.Join(s.Root,"versions","v1"));err!=nil{t.Fatal(err)}
+ if err:=s.Verify("v1");err==nil{t.Fatal("accepted symlinked release")}
+}
+func TestSelectorWillNotReplaceForeignFile(t *testing.T){
+ base:=t.TempDir()
+ s:=Store{Root:filepath.Join(base,"store")}
+ src:=fixture(t,base,"v1")
+ if err:=s.Stage(src,"v1");err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(filepath.Join(s.Root,"current"),[]byte("foreign"),0600);err!=nil{t.Fatal(err)}
+ if err:=s.Activate("v1");err==nil{t.Fatal("overwrote foreign selector file")}
+}
