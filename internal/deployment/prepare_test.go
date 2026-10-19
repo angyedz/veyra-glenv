@@ -29,6 +29,9 @@ func TestPrepareCopyPreservesFullGlenvAndSource(t *testing.T) {
 	if err := os.Symlink("/usr/lib/x86_64-linux-gnu/libc.so.6", link); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(source, ".glenv-prefix"), []byte("original ownership marker"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	staging := filepath.Join(base, "glenv-release-v1")
 	if err := PrepareCopy(source, staging, "v1"); err != nil {
 		t.Fatal(err)
@@ -54,6 +57,12 @@ func TestPrepareCopyPreservesFullGlenvAndSource(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(source, "glenv-manifest.json")); !os.IsNotExist(err) {
 		t.Fatalf("source unexpectedly received a manifest: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(staging, ".glenv-prefix")); !os.IsNotExist(err) {
+		t.Fatalf("prepared release inherited original install ownership marker: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(source, ".glenv-prefix")); err != nil {
+		t.Fatalf("original glenv ownership marker was changed: %v", err)
 	}
 	if err := PrepareCopy(source, staging, "v1"); err == nil {
 		t.Fatal("overwrote existing staged release")
