@@ -42,9 +42,12 @@ func run(args []string)int{
   storeRoot:=fs.String("store","/var/lib/veyra/glenv","version store (requires administrator ownership)")
   if err:=fs.Parse(args[1:]);err!=nil{return 2}
   rest:=fs.Args()
-  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <inventory|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
+  if len(rest)==0{fmt.Fprintln(os.Stderr,"usage: glenv release [--store PATH] <prepare-copy|inventory|verify|stage|activate|pin|pair-host|pair-status|boot-pair-pin|bind-host|boot-pin|boot-status|rollback|status> ...");return 2}
   store:=deployment.Store{Root:*storeRoot}
   switch rest[0]{
+  case "prepare-copy":
+   if len(rest)!=4{return 2}
+   if err:=deployment.PrepareCopy(rest[1],rest[2],rest[3]);err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
   case "inventory":
    if len(rest)!=3{return 2}
    m,err:=deployment.Inventory(rest[1],rest[2]);if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
