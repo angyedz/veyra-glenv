@@ -14,13 +14,19 @@ import (
 // pinned release to host and user namespaces and keep its files immutable.
 // This method does not mount, unmount, or change namespace privileges.
 func (s Store) Pin(destination string)error{
+ current,err:=s.Current();if err!=nil{return err}
+ if current==""{return errors.New("no active glenv generation")}
+ return s.pinVersion(current,destination)
+}
+
+// pinVersion never changes the global active selector. BindHost/PinForHost
+// can use a deployment-specific version instead of whichever is current.
+func (s Store) pinVersion(version,destination string)error{
  if !filepath.IsAbs(destination)||filepath.Clean(destination)=="/"{
   return errors.New("pin destination must be an absolute non-root path")
  }
- current,err:=s.Current();if err!=nil{return err}
- if current==""{return errors.New("no active glenv generation")}
- if err:=s.Verify(current);err!=nil{return err}
- release,err:=s.release(current);if err!=nil{return err}
+ if err:=s.Verify(version);err!=nil{return err}
+ release,err:=s.release(version);if err!=nil{return err}
  parent:=filepath.Dir(destination)
  if err:=os.MkdirAll(parent,0755);err!=nil{return err}
  // A pin may only replace a previous pin, never a directory or a
