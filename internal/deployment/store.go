@@ -26,8 +26,19 @@ func (s Store) release(version string)(string,error){
  }
  return filepath.Join(s.Root,"versions",version),nil
 }
-func (s Store) Setup()error{
+// verifyStoreRoot prevents untrusted symlinks in the store's final path.
+// The privileged boot coordinator must additionally own the parent directory
+// and enforce access control; this check is not a substitute for that policy.
+func (s Store) verifyStoreRoot()error{
  if s.Root==""||!filepath.IsAbs(s.Root){return errors.New("store root must be absolute")}
+ info,err:=os.Lstat(s.Root)
+ if os.IsNotExist(err){return nil}
+ if err!=nil{return err}
+ if !info.IsDir()||info.Mode()&os.ModeSymlink!=0{return errors.New("store root must be a real directory")}
+ return nil
+}
+func (s Store) Setup()error{
+ if err:=s.verifyStoreRoot();err!=nil{return err}
  return os.MkdirAll(filepath.Join(s.Root,"versions"),0755)
 }
 func readTree(dir string)(TreeManifest,error){
@@ -37,6 +48,7 @@ func readTree(dir string)(TreeManifest,error){
  return m,VerifyTree(dir,m)
 }
 func (s Store) Verify(version string)error{
+ if err:=s.verifyStoreRoot();err!=nil{return err}
  dir,err:=s.release(version);if err!=nil{return err}
  m,err:=readTree(dir);if err!=nil{return err}
  if m.Version!=version{return fmt.Errorf("release %s has mismatched manifest version %q",version,m.Version)}
@@ -77,6 +89,7 @@ func (s Store) Stage(source,version string)error{
 }
 
 func (s Store) selected(link string)(string,error){
+ if err:=s.verifyStoreRoot();err!=nil{return "",err}
  target,err:=os.Readlink(filepath.Join(s.Root,link))
  if os.IsNotExist(err){return "",nil}
  if err!=nil{return "",err}
