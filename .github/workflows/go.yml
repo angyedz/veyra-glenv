@@ -52,6 +52,22 @@ jobs:
           /tmp/glenv doctor --runtime "$root"
           /tmp/glenv run --runtime "$root" --dry-run /bin/true
           /tmp/glenv run --runtime "$root" /bin/true
+      - name: Preserve source when preparing a Debian glenv release
+        shell: bash
+        run: |
+          set -euo pipefail
+          source=/tmp/glenv-offline-original
+          prepared=/tmp/glenv-prepared-copy
+          mkdir -p "$source/sysroot/usr/lib/x86_64-linux-gnu" "$source/lib"
+          printf 'Debian libc fixture' > "$source/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
+          printf 'Original Wayland shim fixture' > "$source/lib/glenv-wayland-filter.so"
+          ln -s /usr/lib/x86_64-linux-gnu/libc.so.6 "$source/sysroot/libc.so.6"
+          /tmp/glenv release prepare-copy "$source" "$prepared" copy-v1
+          test -f "$source/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
+          test "$(readlink "$prepared/sysroot/libc.so.6")" = /usr/lib/x86_64-linux-gnu/libc.so.6
+          /tmp/glenv release --store /tmp/glenv-copy-store stage "$prepared" copy-v1
+          /tmp/glenv release --store /tmp/glenv-copy-store verify copy-v1
+          test -f "$source/lib/glenv-wayland-filter.so"
       - name: Release inventory and verification smoke test
         shell: bash
         run: |
