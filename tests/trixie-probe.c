@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 struct library {
     const char *name;
@@ -30,6 +31,29 @@ int main(void) {
     if (strcmp(gnu_get_libc_version(), "2.41") != 0) {
         fprintf(stderr, "Expected glibc 2.41 from Debian Trixie\n");
         return EXIT_FAILURE;
+    }
+    const char *prefix = getenv("GLENV_TRIXIE_ROOT");
+    const char *overrides[] = {
+        "SPA_PLUGIN_DIR",
+        "PIPEWIRE_MODULE_DIR",
+        "PIPEWIRE_CONFIG_DIR",
+    };
+    if (prefix && prefix[0]) {
+        for (size_t i = 0; i < sizeof(overrides)/sizeof(overrides[0]); ++i) {
+            const char *actual = getenv(overrides[i]);
+            char expected[4096];
+            if (snprintf(expected, sizeof(expected), "%s/runtime/sysroot/", prefix) < 0) {
+                return EXIT_FAILURE;
+            }
+            if (!actual || strncmp(actual, expected, strlen(expected)) != 0 ||
+                access(actual, F_OK) != 0) {
+                fprintf(stderr, "FAIL Debian runtime plugin path %s=%s\n",
+                        overrides[i], actual ? actual : "(missing)");
+                ++failures;
+            } else {
+                printf("OK Debian plugin path %s=%s\n", overrides[i], actual);
+            }
+        }
     }
     for (size_t index = 0; index < sizeof(required) / sizeof(required[0]); ++index) {
         dlerror();
