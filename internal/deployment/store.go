@@ -80,6 +80,14 @@ func (s Store) Stage(source,version string)error{
  if err:=s.Setup();err!=nil{return err}
  dest,err:=s.release(version);if err!=nil{return err}
  source,err=filepath.Abs(source);if err!=nil{return err}
+ // Never rename the installed original glenv prefix into the version store.
+ // Original glenv creates .glenv-prefix as its installation ownership marker.
+ if source=="/opt/glibc-env"||source=="/opt/glibc-env/sysroot"{
+  return errors.New("refusing to move the installed glenv prefix; use release prepare-copy")
+ }
+ if _,err:=os.Lstat(filepath.Join(source,".glenv-prefix"));err==nil{
+  return errors.New("refusing to move original glenv-owned prefix; use release prepare-copy")
+ }else if !os.IsNotExist(err){return err}
  m,err:=readTree(source);if err!=nil{return err}
  if (m.Format!=2&&m.Format!=3)||m.Version!=version{return errors.New("manifest format or version mismatch")}
  if _,err:=os.Lstat(dest);err==nil{return os.ErrExist}else if !os.IsNotExist(err){return err}
