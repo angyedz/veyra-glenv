@@ -81,7 +81,7 @@ func (s Store) Stage(source,version string)error{
  dest,err:=s.release(version);if err!=nil{return err}
  source,err=filepath.Abs(source);if err!=nil{return err}
  m,err:=readTree(source);if err!=nil{return err}
- if m.Format!=2||m.Version!=version{return errors.New("manifest format or version mismatch")}
+ if (m.Format!=2&&m.Format!=3)||m.Version!=version{return errors.New("manifest format or version mismatch")}
  if _,err:=os.Lstat(dest);err==nil{return os.ErrExist}else if !os.IsNotExist(err){return err}
  srcInfo,err:=os.Lstat(source);if err!=nil{return err}
  if !srcInfo.IsDir()||srcInfo.Mode()&os.ModeSymlink!=0{return errors.New("source is not a directory")}
