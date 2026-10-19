@@ -6,6 +6,7 @@ on:
     paths:
       - 'tests/trixie-probe.c'
       - 'tests/trixie-wayland-client.c'
+      - 'tests/trixie-gtk-wayland.c'
       - '.github/workflows/trixie-sysroot.yml'
       - 'internal/launcher/**'
       - 'internal/runtime/**'
@@ -41,6 +42,7 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -o /tmp/glenv-trixie ./cmd/glenv
           gcc -O2 -Wall -Wextra -Werror -o /tmp/glenv-trixie-probe tests/trixie-probe.c -ldl
           gcc -O2 -Wall -Wextra -Werror -o /tmp/glenv-trixie-wayland tests/trixie-wayland-client.c -ldl
+          gcc -O2 -Wall -Wextra -Werror -o /tmp/glenv-trixie-gtk tests/trixie-gtk-wayland.c -ldl
       - name: Install real Debian Trixie userspace in disposable Docker container
         shell: bash
         run: |
@@ -71,7 +73,7 @@ jobs:
           gcc -shared -fPIC -O2 -nostdlib \
             -o "$root/runtime/lib/glenv-wayland-filter.so" \
             original-glenv/src/shim/glenv-wayland-filter.c
-          cp /tmp/glenv-trixie /tmp/glenv-trixie-probe /tmp/glenv-trixie-wayland "$root/"
+          cp /tmp/glenv-trixie /tmp/glenv-trixie-probe /tmp/glenv-trixie-wayland /tmp/glenv-trixie-gtk "$root/"
           test -f "$root/runtime/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
           du -sh "$root/runtime/sysroot"
       - name: Run real Debian glibc ELF on Alpine musl host
@@ -135,6 +137,9 @@ jobs:
               fi
               "$base/glenv-trixie" run --runtime "$base/runtime" \
                 "$base/glenv-trixie-wayland"
+              GDK_BACKEND=wayland timeout 25 \
+                "$base/glenv-trixie" run --runtime "$base/runtime" \
+                "$base/glenv-trixie-gtk"
             '
       - name: Connect Debian glibc PipeWire client to musl-native PipeWire server
         shell: bash
