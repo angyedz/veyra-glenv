@@ -36,6 +36,18 @@ jobs:
           /tmp/glenv version
           /tmp/glenv inspect /bin/true
           /tmp/glenv release --store /tmp/glenv-ci-store status
+      - name: Real glibc loader smoke test (host-compatible fixture)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          root=/tmp/glenv-loader-fixture
+          mkdir -p "$root/sysroot/lib/x86_64-linux-gnu"
+          cp -L /lib64/ld-linux-x86-64.so.2 "$root/sysroot/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+          cp -L /lib/x86_64-linux-gnu/libc.so.6 "$root/sysroot/lib/x86_64-linux-gnu/libc.so.6"
+          /tmp/glenv doctor --runtime "$root"
+          /tmp/glenv run --runtime "$root" --dry-run /bin/true
+          /tmp/glenv run --runtime "$root" /bin/true
       - name: Release inventory and verification smoke test
         shell: bash
         run: |
