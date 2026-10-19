@@ -114,3 +114,14 @@ func TestStoreRejectsSymlinkManifest(t *testing.T){
  s:=Store{Root:filepath.Join(base,"store")}
  if err:=s.Stage(source,"v1");err==nil{t.Fatal("accepted external symlink manifest")}
 }
+
+func TestStageRefusesOriginalGlenvPrefix(t *testing.T){
+ base:=t.TempDir()
+ original:=fixture(t,base,"v1")
+ if err:=os.WriteFile(filepath.Join(original,".glenv-prefix"),[]byte("original"),0600);err!=nil{t.Fatal(err)}
+ s:=Store{Root:filepath.Join(base,"store")}
+ if err:=s.Stage(original,"v1");err==nil{t.Fatal("stage moved an original glenv-owned prefix")}
+ if _,err:=os.Stat(filepath.Join(original,"sysroot","libc.so"));err!=nil{
+  t.Fatalf("original glenv was moved: %v",err)
+ }
+}
