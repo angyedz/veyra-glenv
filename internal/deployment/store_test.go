@@ -51,3 +51,14 @@ func TestStoreWillNotOverwrite(t *testing.T){
  two:=fixture(t,base,"v1")
  if err:=store.Stage(two,"v1");err==nil{t.Fatal("overwrote immutable generation")}
 }
+
+func TestStoreRejectsAncestorStage(t *testing.T){
+ base:=t.TempDir()
+ s:=Store{Root:filepath.Join(base,"store")}
+ if err:=s.Setup();err!=nil{t.Fatal(err)}
+ // A move of base would recursively move the store into itself.
+ m,err:=Inventory(base,"v1");if err!=nil{t.Fatal(err)}
+ data,err:=json.Marshal(m);if err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(filepath.Join(base,"glenv-manifest.json"),data,0644);err!=nil{t.Fatal(err)}
+ if err:=s.Stage(base,"v1");err==nil{t.Fatal("accepted ancestor of version store")}
+}
