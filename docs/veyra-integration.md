@@ -52,3 +52,21 @@ The `glenv release` CLI now offers `inventory`, `stage`, `verify`, `activate`, `
 This is **not yet an atomic Veyra host OTA implementation**. Two selector symlinks are not one crash-consistent multi-object transaction; a boot coordinator must pair host deployment and runtime release in one validated boot record. The pin itself is not a bind mount. No mount namespace setup, read-only enforcement, signature verification, unattended update, or original glenv Debian package builder is installed here. Do not run `activate` on a production machine before integrating a privileged boot coordinator, signature validation, and protected read-only generation storage.
 
 For a two-environment boot, the host boot coordinator should resolve the validated release once, then expose that **same pinned generation** read-only into both host and user namespaces at a stable path. Existing processes must stay on their old generation until exit/reboot. Store ownership and permissions must prevent users from editing manifests, release trees or selection links.
+
+## Persistent A/B deployment-to-glenv mapping (development)
+
+The original `bind-host` command maintains a **single mutable boot-binding.json** for one selected host deployment. That file is insufficient for a direct host rollback because it forgets previous host IDs.
+
+Prefer the new **per-deployment**, create-only mapping for A/B development:
+
+```sh
+glenv release --store /var/lib/veyra/glenv pair-host veyra-A glenv-1
+glenv release --store /var/lib/veyra/glenv pair-host veyra-B glenv-2
+glenv release --store /var/lib/veyra/glenv pair-status veyra-A
+# Trusted boot coordinator supplies selected host slot ID:
+glenv release --store /var/lib/veyra/glenv boot-pair-pin veyra-A /run/glenv/runtime
+```
+
+`pair-host` writes `deployment-pairs/<hostID>.json` using an atomic **create-if-absent** hard-link transaction after validating that the referenced glenv tree exists and passes its manifest. Repeating exactly the same mapping is allowed, but repointing an existing Veyra host ID to another runtime is rejected. When Veyra's bootloader rolls back from slot B to slot A, `boot-pair-pin veyra-A` selects A's **original** runtime even if glenv's global `current` pointer still points to B.
+
+`boot-pair-pin` is a selector, **not a signed boot manager**. Veyra must provide the authentic selected host deployment ID, read-only versions, signature verification, durable image-update orchestration and read-only mount propagation before this can become a production OTA system. For legacy tests, `bind-host` and `boot-pin` remain available, but Veyra integration should use the per-host commands.
