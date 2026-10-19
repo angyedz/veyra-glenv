@@ -28,7 +28,7 @@ License file will be provided by the repository owner.
 
 ## Versioned runtime operations (development only)
 
-The `release` commands manage verified staged generations. `inventory` emits a complete format-2 manifest, including regular-file SHA-256 hashes, directories, and Debian symlink targets. The release store can stage and verify a tree, select `current`, retain `previous`, roll back selection, and pin the verified generation for a boot session.
+The `release` commands manage verified staged generations. `inventory` emits a complete format-3 manifest, including regular-file SHA-256 hashes, directories, and Debian symlink targets. The release store can stage and verify a tree, select `current`, retain `previous`, roll back selection, and pin the verified generation for a boot session.
 
 ```sh
 # Work only in a disposable test directory until a privileged Veyra boot
@@ -69,3 +69,15 @@ glenv release --store /var/lib/veyra/glenv boot-pair-pin veyra-A /run/glenv/runt
 ```
 
 Each host ID has its own create-only mapping; it cannot silently be retargeted to another glenv generation. Selecting an older host ID after a rollback pins its matching previous runtime, regardless of the `current` selector. These records are not signed, and boot pinning remains a **prototype** until Veyra implements authenticated boot metadata, trusted immutable storage and read-only runtime mounts for both environments.
+
+## Preparing an update without touching original glenv
+
+Use a **trusted offline copy** of the original `/opt/glibc-env` prefix, containing its Debian `sysroot/` and the original `lib/glenv-wayland-filter.so`. Never point a privileged installer at a live, changing prefix:
+
+```sh
+glenv release prepare-copy /offline/glibc-env /staging/glenv-2026-10 glenv-2026-10
+glenv release --store /var/lib/veyra/glenv stage /staging/glenv-2026-10 glenv-2026-10
+glenv release --store /var/lib/veyra/glenv verify glenv-2026-10
+```
+
+The source is never moved or modified; output must not exist beforehand. New manifests use **format 3** with SHA-256 file hashes, exact symlink targets, and Unix permission bits. The original Wayland shim binary is copied, not rewritten. Format 2 remains readable for compatibility but does not detect permission changes. The resulting tree is still not signed, mounted read-only, or automatically boot-activated.
