@@ -71,7 +71,7 @@ func run(args []string)int{
   case "boot-status":
    if len(rest)!=1{return 2}
    binding,err:=store.ReadBinding();if err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
-   fmt.Printf("host: %s\\nglenv: %s\\n",binding.HostDeployment,binding.GlenvVersion)
+   fmt.Printf("host: %s\nglenv: %s\n",binding.HostDeployment,binding.GlenvVersion)
   case "rollback":
    if len(rest)!=1{return 2}
    if err:=store.Rollback();err!=nil{fmt.Fprintln(os.Stderr,err);return 1}
