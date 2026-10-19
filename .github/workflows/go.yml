@@ -81,8 +81,24 @@ jobs:
       - name: Test on musl
         run: go test -count=1 ./...
       - name: Build on musl
-        run: go build -trimpath -o /tmp/glenv ./cmd/glenv
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/glenv ./cmd/glenv
       - name: Check ELF and binary startup
         run: |
-          /tmp/glenv version
-          /tmp/glenv inspect /bin/busybox
+          ./dist/glenv version
+          ./dist/glenv inspect /bin/busybox
+      - name: Pack experimental musl binary with checksums
+        run: |
+          tar -czf dist/glenv-linux-musl-x86_64.tar.gz -C dist glenv
+          cd dist
+          sha256sum glenv-linux-musl-x86_64.tar.gz > glenv-linux-musl-x86_64.tar.gz.sha256
+      - name: Upload development binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: glenv-linux-musl-x86_64
+          path: |
+            dist/glenv-linux-musl-x86_64.tar.gz
+            dist/glenv-linux-musl-x86_64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
