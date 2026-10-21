@@ -117,6 +117,20 @@ func PrepareCopy(source, destination, version string) (err error) {
 	if err := VerifyTree(src, sourceManifest); err != nil {
 		return fmt.Errorf("glenv source changed while it was copied: %w", err)
 	}
+	manifestPath := filepath.Join(dst, "glenv-manifest.json")
+	// Create the excluded inventory file while the staging root is writable;
+	// this lets us restore even read-only source directory modes before the
+	// final inventory is computed.
+	if err := os.WriteFile(manifestPath, nil, 0644); err != nil {
+		return err
+	}
+	// Do not change source permissions; restore each copied directory from
+	// deepest to shallowest before taking the final mode-aware inventory.
+	for i := len(modes) - 1; i >= 0; i-- {
+		if err := os.Chmod(modes[i].path, modes[i].mode); err != nil {
+			return err
+		}
+	}
 	manifest, err := Inventory(dst, version)
 	if err != nil {
 		return err
@@ -126,15 +140,8 @@ func PrepareCopy(source, destination, version string) (err error) {
 		return err
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(filepath.Join(dst, "glenv-manifest.json"), data, 0644); err != nil {
+	if err := os.WriteFile(manifestPath, data, 0644); err != nil {
 		return err
-	}
-	// Do not change source permissions; restore each copied directory from
-	// deepest to shallowest only after all writes have finished.
-	for i := len(modes) - 1; i >= 0; i-- {
-		if err := os.Chmod(modes[i].path, modes[i].mode); err != nil {
-			return err
-		}
 	}
 	if err := VerifyTree(dst, manifest); err != nil {
 		return fmt.Errorf("prepared glenv tree does not match its inventory: %w", err)
