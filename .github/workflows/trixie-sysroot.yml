@@ -10,6 +10,16 @@ on:
       - '.github/workflows/trixie-sysroot.yml'
       - 'internal/launcher/**'
       - 'internal/runtime/**'
+      - 'internal/deployment/**'
+  pull_request:
+    paths:
+      - 'tests/trixie-probe.c'
+      - 'tests/trixie-wayland-client.c'
+      - 'tests/trixie-gtk-wayland.c'
+      - '.github/workflows/trixie-sysroot.yml'
+      - 'internal/launcher/**'
+      - 'internal/runtime/**'
+      - 'internal/deployment/**'
   workflow_dispatch:
 
 permissions:
@@ -56,6 +66,7 @@ jobs:
               libc6 libstdc++6 coreutils \
               libwayland-client0 libwayland-egl1 \
               libegl1 libgl1 libgl1-mesa-dri libgbm1 mesa-vulkan-drivers \
+              vulkan-tools \
               libgtk-3-0t64 libgdk-pixbuf2.0-bin \
               gsettings-desktop-schemas adwaita-icon-theme hicolor-icon-theme \
               libpipewire-0.3-0 libspa-0.2-modules \
@@ -70,16 +81,16 @@ jobs:
           set -euo pipefail
           root=/tmp/veyra-trixie-probe
           echo "VEYRA_TRIXIE_ROOT=$root" >> "$GITHUB_ENV"
-          mkdir -p "$root/runtime/sysroot" "$root/runtime/lib"
-          docker export "$VEYRA_TRIXIE_CONTAINER" | tar -xf - -C "$root/runtime/sysroot"
+          mkdir -p "$root/source-runtime/sysroot" "$root/source-runtime/lib"
+          docker export "$VEYRA_TRIXIE_CONTAINER" | tar -xf - -C "$root/source-runtime/sysroot"
           gcc -shared -fPIC -O2 -nostdlib \
-            -o "$root/runtime/lib/glenv-wayland-filter.so" \
+            -o "$root/source-runtime/lib/glenv-wayland-filter.so" \
             original-glenv/src/shim/glenv-wayland-filter.c
           # Debian postinst generates a gdk-pixbuf loader cache with /usr/lib
           # paths. Rewrite only this disposable test sysroot to the actual
           # mount location; production needs relocation at launch, not a
           # mutable cache inside an already-signed release.
-          pixbuf="$root/runtime/sysroot/usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0"
+          pixbuf="$root/source-runtime/sysroot/usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0/2.10.0"
           test -f "$pixbuf/loaders.cache"
           echo 'Original Debian gdk-pixbuf loader registration:'
           head -n 12 "$pixbuf/loaders.cache"
@@ -89,6 +100,8 @@ jobs:
           echo 'Relocated disposable GTK loader registration:'
           head -n 12 "$pixbuf/loaders.cache"
           cp /tmp/glenv-trixie /tmp/glenv-trixie-probe /tmp/glenv-trixie-wayland /tmp/glenv-trixie-gtk "$root/"
+          /tmp/glenv-trixie release prepare-copy \
+            "$root/source-runtime" "$root/runtime" trixie-ci
           test -f "$root/runtime/sysroot/usr/lib/x86_64-linux-gnu/libc.so.6"
           du -sh "$root/runtime/sysroot"
       - name: Run real Debian glibc ELF on Alpine musl host
@@ -101,6 +114,12 @@ jobs:
             -e GLENV_TRIXIE_ROOT="$root" \
             alpine:3.22 sh -ec '
               base=$GLENV_TRIXIE_ROOT
+              export LIBGL_DRIVERS_PATH=/usr/lib/musl-do-not-load-dri
+              export EGL_DRIVERS_PATH=/usr/lib/musl-do-not-load-egl
+              export __EGL_VENDOR_LIBRARY_DIRS=/usr/share/musl-do-not-load-egl-vendors
+              export __EGL_VENDOR_LIBRARY_FILENAMES=/etc/musl-do-not-load-egl.json
+              export VK_DRIVER_FILES=/usr/share/musl-do-not-load-vulkan
+              export VK_ICD_FILENAMES=/usr/share/musl-do-not-load-vulkan-old
               "$base/glenv-trixie" inspect "$base/runtime/sysroot/usr/bin/true"
               "$base/glenv-trixie" doctor --runtime "$base/runtime"
               "$base/glenv-trixie" run --runtime "$base/runtime" \
@@ -113,6 +132,14 @@ jobs:
               grep -F "OK GTK 3" /tmp/probe-output
               grep -F "OK EGL/GLVND" /tmp/probe-output
               grep -F "OK Wayland client" /tmp/probe-output
+              "$base/glenv-trixie" run --runtime "$base/runtime" \
+                "$base/runtime/sysroot/usr/bin/vulkaninfo" --summary \
+                >/tmp/vulkaninfo-output 2>&1 || {
+                  cat /tmp/vulkaninfo-output >&2
+                  exit 1
+                }
+              cat /tmp/vulkaninfo-output
+              grep -i "llvmpipe" /tmp/vulkaninfo-output
             '
       - name: Connect Debian-glibc Wayland client to real musl Weston
         shell: bash

@@ -16,7 +16,11 @@ go build -o glenv ./cmd/glenv
 ./glenv run --runtime /opt/glibc-env /path/to/glibc-app
 ```
 
-`run` invokes a selected runtime's dynamic loader with explicit library paths. It requires a compatible existing sysroot and is **not** yet a substitute for glenv's complete system integration. It does not transparently intercept `execve` or automatically configure Wayland shim, PipeWire modules, NSS, graphics driver integration or absolute sysroot paths.
+`run` invokes a selected runtime's dynamic loader with explicit library paths. It configures Mesa, EGL/GLVND and Vulkan driver discovery from that runtime, and also selects runtime-owned PipeWire modules. It requires a compatible existing sysroot and is **not** yet a substitute for glenv's complete system integration: it does not transparently intercept `execve` or resolve every application-specific absolute path, NSS, locale or certificate dependency.
+
+Graphics support here is userspace integration. The Veyra host still has to load a compatible kernel driver, provide its firmware and expose an accessible `/dev/dri/renderD*` node. `glenv doctor` reports runtime paths and visible render nodes; it does not prove GPU access or acceleration. CI currently exercises Vulkan with Mesa's software renderer, not Nouveau hardware.
+
+`release prepare-copy` normalizes Vulkan and GLVND manifest paths in the prepared copy so they resolve inside the selected glenv sysroot. It never edits the original source prefix.
 
 ## Atomic Veyra integration
 

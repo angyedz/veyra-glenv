@@ -11,9 +11,9 @@ import (
 )
 
 // PrepareCopy copies a complete, OFFLINE glenv prefix to a new staging tree.
-// It never renames, deletes, or writes inside the source directory. In
-// particular, it keeps Debian absolute symlinks as symlinks and copies the
-// original Wayland filter without rebuilding or replacing its implementation.
+// It never renames, deletes, or writes inside the source directory. It keeps
+// Debian absolute symlinks as symlinks, normalizes graphics manifests inside
+// the copy, and preserves the original Wayland filter implementation.
 //
 // The source must be a trusted, quiescent directory. This is not a snapshot
 // of a live, concurrently writable tree; no manifest can guarantee that.
@@ -48,20 +48,10 @@ func PrepareCopy(source, destination, version string) (err error) {
 	}
 	// Inventory before reading anything into the target so a changed source
 	// will be detected by the final content-and-link verification.
-	manifest, err := Inventory(src, version)
+	sourceManifest, err := Inventory(src, version)
 	if err != nil {
 		return err
 	}
-	// The original glenv installer uses .glenv-prefix to establish ownership
-	// for uninstall/purge. Never copy that marker to a new deployment or it
-	// could later be mistaken for an installed original prefix.
-	entries := manifest.Entries[:0]
-	for _, entry := range manifest.Entries {
-		if entry.Path != ".glenv-prefix" {
-			entries = append(entries, entry)
-		}
-	}
-	manifest.Entries = entries
 	if err := os.Mkdir(dst, 0700); err != nil {
 		return err // never overwrite an existing directory or symlink
 	}
@@ -117,6 +107,20 @@ func PrepareCopy(source, destination, version string) (err error) {
 	if err != nil {
 		return err
 	}
+	sysroot := dst
+	if info, err := os.Stat(filepath.Join(dst, "sysroot")); err == nil && info.IsDir() {
+		sysroot = filepath.Join(dst, "sysroot")
+	}
+	if err := normalizeGraphicsManifests(sysroot); err != nil {
+		return fmt.Errorf("normalize glenv graphics manifests: %w", err)
+	}
+	if err := VerifyTree(src, sourceManifest); err != nil {
+		return fmt.Errorf("glenv source changed while it was copied: %w", err)
+	}
+	manifest, err := Inventory(dst, version)
+	if err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
@@ -133,7 +137,7 @@ func PrepareCopy(source, destination, version string) (err error) {
 		}
 	}
 	if err := VerifyTree(dst, manifest); err != nil {
-		return fmt.Errorf("copied glenv tree does not match source inventory: %w", err)
+		return fmt.Errorf("prepared glenv tree does not match its inventory: %w", err)
 	}
 	complete = true
 	return nil

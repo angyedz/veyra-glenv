@@ -3,6 +3,7 @@ package deployment
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -15,6 +16,30 @@ func TestPrepareCopyPreservesFullGlenvAndSource(t *testing.T) {
 	}
 	libc := filepath.Join(libdir, "libc.so.6")
 	if err := os.WriteFile(libc, []byte("glibc Debian fixture"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	vulkanLibrary := filepath.Join(libdir, "libvulkan_nouveau.so")
+	if err := os.WriteFile(vulkanLibrary, []byte("Mesa Nouveau ICD fixture"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	eglLibrary := filepath.Join(libdir, "libEGL_mesa.so.0")
+	if err := os.WriteFile(eglLibrary, []byte("Mesa EGL fixture"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	vulkanManifest := filepath.Join(source, "sysroot", "usr", "share", "vulkan", "icd.d", "nouveau_icd.json")
+	if err := os.MkdirAll(filepath.Dir(vulkanManifest), 0755); err != nil {
+		t.Fatal(err)
+	}
+	vulkanJSON := `{"file_format_version":"1.0.0","ICD":{"library_path":"/usr/lib/x86_64-linux-gnu/libvulkan_nouveau.so","api_version":"1.3.0"}}` + "\n"
+	if err := os.WriteFile(vulkanManifest, []byte(vulkanJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	eglManifest := filepath.Join(source, "sysroot", "usr", "share", "glvnd", "egl_vendor.d", "50_mesa.json")
+	if err := os.MkdirAll(filepath.Dir(eglManifest), 0755); err != nil {
+		t.Fatal(err)
+	}
+	eglJSON := `{"file_format_version":"1.0.0","ICD":{"library_path":"/usr/lib/x86_64-linux-gnu/libEGL_mesa.so.0"}}` + "\n"
+	if err := os.WriteFile(eglManifest, []byte(eglJSON), 0644); err != nil {
 		t.Fatal(err)
 	}
 	bindir := filepath.Join(source, "lib")
@@ -51,6 +76,20 @@ func TestPrepareCopyPreservesFullGlenvAndSource(t *testing.T) {
 	if err != nil || stagedLink != "/usr/lib/x86_64-linux-gnu/libc.so.6" {
 		t.Fatalf("Debian symlink lost: %q %v", stagedLink, err)
 	}
+	preparedVulkan, err := os.ReadFile(filepath.Join(staging, "sysroot", "usr", "share", "vulkan", "icd.d", "nouveau_icd.json"))
+	if err != nil || !strings.Contains(string(preparedVulkan), `"library_path": "../../../lib/x86_64-linux-gnu/libvulkan_nouveau.so"`) {
+		t.Fatalf("Vulkan ICD path was not made sysroot-relative: %s %v", preparedVulkan, err)
+	}
+	preparedEGL, err := os.ReadFile(filepath.Join(staging, "sysroot", "usr", "share", "glvnd", "egl_vendor.d", "50_mesa.json"))
+	if err != nil || !strings.Contains(string(preparedEGL), `"library_path": "libEGL_mesa.so.0"`) {
+		t.Fatalf("EGL vendor path was not made loader-relative: %s %v", preparedEGL, err)
+	}
+	if original, err := os.ReadFile(vulkanManifest); err != nil || string(original) != vulkanJSON {
+		t.Fatalf("original Vulkan manifest was changed: %s %v", original, err)
+	}
+	if original, err := os.ReadFile(eglManifest); err != nil || string(original) != eglJSON {
+		t.Fatalf("original EGL manifest was changed: %s %v", original, err)
+	}
 	data, err := os.ReadFile(libc)
 	if err != nil || string(data) != "glibc Debian fixture" {
 		t.Fatalf("original glenv mutated: %q %v", data, err)
@@ -66,6 +105,26 @@ func TestPrepareCopyPreservesFullGlenvAndSource(t *testing.T) {
 	}
 	if err := PrepareCopy(source, staging, "v1"); err == nil {
 		t.Fatal("overwrote existing staged release")
+	}
+}
+
+func TestPrepareCopyRejectsGraphicsLibraryOutsideSysroot(t *testing.T) {
+	base := t.TempDir()
+	source := filepath.Join(base, "original")
+	manifest := filepath.Join(source, "sysroot", "usr", "share", "vulkan", "icd.d", "bad_icd.json")
+	if err := os.MkdirAll(filepath.Dir(manifest), 0755); err != nil {
+		t.Fatal(err)
+	}
+	data := `{"file_format_version":"1.0.0","ICD":{"library_path":"/opt/host/libvulkan_bad.so"}}`
+	if err := os.WriteFile(manifest, []byte(data), 0644); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(base, "prepared")
+	if err := PrepareCopy(source, destination, "v1"); err == nil {
+		t.Fatal("accepted a graphics library path outside the glenv sysroot")
+	}
+	if _, err := os.Lstat(destination); !os.IsNotExist(err) {
+		t.Fatalf("failed preparation left a partial destination: %v", err)
 	}
 }
 

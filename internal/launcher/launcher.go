@@ -116,6 +116,11 @@ func (p Plan) Command() *exec.Cmd {
 			if !ok {
 				continue
 			}
+			// This GLVND variable has higher precedence than the runtime-owned
+			// vendor directories and can point at host-ABI libraries.
+			if key == "__EGL_VENDOR_LIBRARY_FILENAMES" {
+				continue
+			}
 			if _, replace := overrides[key]; !replace {
 				environment = append(environment, entry)
 			}
