@@ -11,9 +11,9 @@ import (
 )
 
 // PrepareCopy copies a complete, OFFLINE glenv prefix to a new staging tree.
-// It never renames, deletes, or writes inside the source directory. In
-// particular, it keeps Debian absolute symlinks as symlinks and copies the
-// original Wayland filter without rebuilding or replacing its implementation.
+// It never renames, deletes, or writes inside the source directory. It keeps
+// Debian absolute symlinks as symlinks, normalizes graphics manifests inside
+// the copy, and preserves the original Wayland filter implementation.
 //
 // The source must be a trusted, quiescent directory. This is not a snapshot
 // of a live, concurrently writable tree; no manifest can guarantee that.
@@ -48,20 +48,10 @@ func PrepareCopy(source, destination, version string) (err error) {
 	}
 	// Inventory before reading anything into the target so a changed source
 	// will be detected by the final content-and-link verification.
-	manifest, err := Inventory(src, version)
+	sourceManifest, err := Inventory(src, version)
 	if err != nil {
 		return err
 	}
-	// The original glenv installer uses .glenv-prefix to establish ownership
-	// for uninstall/purge. Never copy that marker to a new deployment or it
-	// could later be mistaken for an installed original prefix.
-	entries := manifest.Entries[:0]
-	for _, entry := range manifest.Entries {
-		if entry.Path != ".glenv-prefix" {
-			entries = append(entries, entry)
-		}
-	}
-	manifest.Entries = entries
 	if err := os.Mkdir(dst, 0700); err != nil {
 		return err // never overwrite an existing directory or symlink
 	}
@@ -117,23 +107,44 @@ func PrepareCopy(source, destination, version string) (err error) {
 	if err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return err
+	sysroot := dst
+	if info, err := os.Stat(filepath.Join(dst, "sysroot")); err == nil && info.IsDir() {
+		sysroot = filepath.Join(dst, "sysroot")
 	}
-	data = append(data, '\n')
-	if err := os.WriteFile(filepath.Join(dst, "glenv-manifest.json"), data, 0644); err != nil {
+	if err := normalizeGraphicsManifests(sysroot); err != nil {
+		return fmt.Errorf("normalize glenv graphics manifests: %w", err)
+	}
+	if err := VerifyTree(src, sourceManifest); err != nil {
+		return fmt.Errorf("glenv source changed while it was copied: %w", err)
+	}
+	manifestPath := filepath.Join(dst, "glenv-manifest.json")
+	// Create the excluded inventory file while the staging root is writable;
+	// this lets us restore even read-only source directory modes before the
+	// final inventory is computed.
+	if err := os.WriteFile(manifestPath, nil, 0644); err != nil {
 		return err
 	}
 	// Do not change source permissions; restore each copied directory from
-	// deepest to shallowest only after all writes have finished.
+	// deepest to shallowest before taking the final mode-aware inventory.
 	for i := len(modes) - 1; i >= 0; i-- {
 		if err := os.Chmod(modes[i].path, modes[i].mode); err != nil {
 			return err
 		}
 	}
+	manifest, err := Inventory(dst, version)
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(manifestPath, data, 0644); err != nil {
+		return err
+	}
 	if err := VerifyTree(dst, manifest); err != nil {
-		return fmt.Errorf("copied glenv tree does not match source inventory: %w", err)
+		return fmt.Errorf("prepared glenv tree does not match its inventory: %w", err)
 	}
 	complete = true
 	return nil

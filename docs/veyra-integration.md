@@ -29,7 +29,9 @@ Host OTA must not change the user environment's APK database or installed applic
 
 ## Important loader limitations
 
-`ld-linux --library-path` only supplies library search paths. It does not automatically solve absolute paths, `dlopen` modules, NSS, locales, certificates, GLVND vendor JSON, GPU driver consistency, `ld.so.cache`, or Wayland shim injection. These require an explicit integration design and tests. **Do not ship this launcher as a replacement for original glenv yet.**
+`ld-linux --library-path` only supplies library search paths. This launcher now selects Mesa, EGL/GLVND and Vulkan driver discovery paths from the glenv sysroot, while `prepare-copy` rewrites graphics manifest library paths in the staged copy. The source prefix stays untouched. This userspace setup does not load a host kernel module or firmware, grant access to a DRM render node, or prove hardware acceleration; it also does not automatically solve every absolute path, `dlopen` module, NSS, locale, certificate or `ld.so.cache` dependency. These still need integration design and tests. **Do not ship this launcher as a replacement for original glenv yet.**
+
+For Nouveau/NVK, Veyra must supply the kernel-side Nouveau driver and matching firmware, then expose the user's permitted `/dev/dri/renderD*` node to the launched process. The glenv runtime supplies the glibc Mesa userspace components and their Vulkan/EGL manifests. A successful software-renderer CI run proves loader and manifest handling only; validating Nouveau performance requires a real supported NVIDIA GPU.
 
 The legacy `/opt/glibc-env/sysroot` is supported as an input for experiments; this repository does not install or update it.
 
